@@ -17,5 +17,10 @@ export default defineConfig([
       globals: globals.browser,
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
+    rules: {
+      // Fetch-on-mount sets state inside async callbacks (not synchronously),
+      // so this React Compiler rule produces false positives for data fetching.
+      'react-hooks/set-state-in-effect': 'off',
+    },
   },
 ])
