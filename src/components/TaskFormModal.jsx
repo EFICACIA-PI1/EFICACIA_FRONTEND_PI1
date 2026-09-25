@@ -7,17 +7,17 @@ import { getConflictForDate, todayKey } from '../services/eventService'
 import { formatDateShort } from '../utils/format'
 
 const MODE_META = {
-  agregar: {
+  create: {
     title: 'Agregar gestión',
     subtitle: 'Añade una gestión al plan logístico del evento.',
     cta: 'Agregar gestión',
   },
-  editar: {
+  edit: {
     title: 'Editar gestión',
     subtitle: 'Actualiza los datos de la gestión.',
     cta: 'Guardar cambios',
   },
-  reprogramar: {
+  reschedule: {
     title: 'Reprogramar gestión',
     subtitle: 'Elige la nueva fecha límite y ajusta las horas si es necesario.',
     cta: 'Reprogramar gestión',
@@ -26,10 +26,10 @@ const MODE_META = {
 
 const emptyForm = { name: '', dueDate: '', hours: '', note: '' }
 
-function TaskFormFields({ mode, event, gestion, onSave, onClose }) {
+function TaskFormFields({ mode, event, task, onSave, onClose }) {
   const [form, setForm] = useState(() =>
-    gestion
-      ? { name: gestion.name, dueDate: gestion.dueDate, hours: String(gestion.hours), note: gestion.note || '' }
+    task
+      ? { name: task.name, dueDate: task.dueDate, hours: String(task.hours), note: task.note || '' }
       : emptyForm
   )
   const [errors, setErrors] = useState({})
@@ -67,6 +67,10 @@ function TaskFormFields({ mode, event, gestion, onSave, onClose }) {
   async function handleSubmit(e) {
     e.preventDefault()
     if (submitting) return
+    if (!event?.id) {
+      setErrors((prev) => ({ ...prev, _global: 'No se pudo identificar el evento asociado.' }))
+      return
+    }
     const nextErrors = validate(form)
     if (Object.values(nextErrors).some(Boolean)) {
       setErrors(nextErrors)
@@ -74,7 +78,7 @@ function TaskFormFields({ mode, event, gestion, onSave, onClose }) {
     }
     setConflict(null)
     const found = await getConflictForDate(event.id, form.dueDate, {
-      excludeId: mode === 'agregar' ? null : gestion?.id,
+      excludeId: mode === 'create' ? null : task?.id,
       addHours: Number(form.hours),
     })
     if (found) {
@@ -88,6 +92,9 @@ function TaskFormFields({ mode, event, gestion, onSave, onClose }) {
         dueDate: form.dueDate,
         hours: Number(form.hours),
         note: form.note.trim(),
+        description: form.note.trim(),
+        due_date: form.dueDate,
+        estimated_hours: Number(form.hours),
       })
     } catch {
       setSubmitting(false)
@@ -222,15 +229,15 @@ function TaskFormFields({ mode, event, gestion, onSave, onClose }) {
   )
 }
 
-export default function TaskFormModal({ open, mode, event, gestion, onSave, onClose }) {
+export default function TaskFormModal({ open, mode, event, task, onSave, onClose }) {
   return (
     <Modal open={open} onClose={onClose} labelledBy="gestion-form-title">
       {open && (
         <TaskFormFields
-          key={`${mode}-${gestion?.id || 'nuevo'}`}
+          key={`${mode}-${task?.id || 'new'}`}
           mode={mode}
           event={event}
-          gestion={gestion}
+          task={task}
           onSave={onSave}
           onClose={onClose}
         />

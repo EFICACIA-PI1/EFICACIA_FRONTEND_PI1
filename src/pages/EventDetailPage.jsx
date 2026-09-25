@@ -6,16 +6,16 @@ import ProgressBar from '../components/ProgressBar'
 import Skeleton from '../components/Skeleton'
 import ConfirmModal from '../components/ConfirmModal'
 import ResultModal from '../components/ResultModal'
-import GestionFormModal from '../components/GestionFormModal'
+import TaskFormModal from '../components/TaskFormModal'
 import {
   getEventDetail,
-  createGestion,
-  updateGestion,
-  deleteGestion,
+  createTask,
+  updateTask,
+  deleteTask,
   deleteEvent,
   postponeGestion,
   formatHours,
-  getGestionStatus,
+  getTaskStatus,
 } from '../services/eventService'
 import { formatDate, formatDateShort } from '../utils/format'
 
@@ -48,12 +48,12 @@ function ErrorState({ onBack }) {
   )
 }
 
-function GestionCard({ gestion, onPostpone, onReprogram, onEdit, onDelete }) {
-  const status = getGestionStatus(gestion)
+function TaskCard({ task, onPostpone, onReschedule, onEdit, onDelete }) {
+  const status = getTaskStatus(task)
   const dotClass =
-    status === 'hecha'
+    status === 'done'
       ? 'bg-success'
-      : status === 'vencida'
+      : status === 'overdue'
         ? 'bg-danger'
         : 'bg-primary'
   return (
@@ -63,36 +63,36 @@ function GestionCard({ gestion, onPostpone, onReprogram, onEdit, onDelete }) {
           <span aria-hidden="true" className={`w-2.5 h-2.5 rounded-full mt-1.5 shrink-0 ${dotClass}`} />
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="font-semibold text-gray-900 leading-snug">{gestion.name}</h3>
-              <StatusBadge gestion={gestion} />
+              <h3 className="font-semibold text-gray-900 leading-snug">{task.name}</h3>
+              <StatusBadge task={task} />
             </div>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-sm text-muted">
-              <span>⏱️ {formatHours(gestion.hours)}</span>
-              <span>📅 {formatDateShort(gestion.dueDate)}</span>
+              <span>⏱️ {formatHours(task.hours)}</span>
+              <span>📅 {formatDateShort(task.dueDate)}</span>
             </div>
-            {gestion.note && (
+            {task.note && (
               <p className="text-xs text-muted mt-2 bg-surface border border-edge rounded-lg px-3 py-2">
-                {gestion.note}
+                {task.note}
               </p>
             )}
           </div>
         </div>
 
         <div className="flex items-center gap-1 flex-wrap justify-end shrink-0">
-          <Button size="sm" variant="neutral" onClick={() => onPostpone(gestion)}>
+          <Button size="sm" variant="neutral" onClick={() => onPostpone(task)}>
             Posponer
           </Button>
-          <Button size="sm" variant="neutral" onClick={() => onReprogram(gestion)}>
+          <Button size="sm" variant="neutral" onClick={() => onReschedule(task)}>
             Reprogramar
           </Button>
-          <Button size="sm" variant="neutral" onClick={() => onEdit(gestion)}>
+          <Button size="sm" variant="neutral" onClick={() => onEdit(task)}>
             Editar
           </Button>
           <Button
             size="sm"
             variant="danger"
-            onClick={() => onDelete(gestion)}
-            aria-label={`Eliminar gestión "${gestion.name}"`}
+            onClick={() => onDelete(task)}
+            aria-label={`Eliminar gestión "${task.name}"`}
           >
             Eliminar
           </Button>
@@ -108,10 +108,10 @@ export default function EventDetailPage() {
 
   const [state, setState] = useState('loading')
   const [event, setEvent] = useState(null)
-  const [gestiones, setGestiones] = useState([])
+  const [tasks, setTasks] = useState([])
   const [progress, setProgress] = useState({ total: 0, done: 0, percent: 0 })
 
-  const [gestionForm, setGestionForm] = useState({ open: false, mode: 'agregar', gestion: null })
+  const [taskForm, setTaskForm] = useState({ open: false, mode: 'create', task: null })
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [mutating, setMutating] = useState(false)
   const [result, setResult] = useState(null)
@@ -124,7 +124,7 @@ export default function EventDetailPage() {
         return
       }
       setEvent(detail.event)
-      setGestiones(detail.gestiones)
+      setTasks(detail.tasks)
       setProgress(detail.progress)
       setState('success')
     } catch {
@@ -144,23 +144,26 @@ export default function EventDetailPage() {
     setResult({ type: 'error', title, message })
   }
 
-  async function handleGestionSave(data) {
-    const { mode, gestion } = gestionForm
+  async function handleTaskSave(data) {
+    const { mode, task } = taskForm
     try {
-      if (mode === 'agregar') {
-        await createGestion(event.id, data)
+      if (!event?.id && mode !== 'create') {
+        throw new Error('Evento no encontrado')
+      }
+      if (mode === 'create') {
+        await createTask(event.id, data)
         successModal('Gestión creada', 'La gestión se ha agregado al plan logístico.')
-      } else if (mode === 'reprogramar') {
-        await updateGestion(gestion.id, data)
+      } else if (mode === 'reschedule') {
+        await updateTask(task.id, data, event.id)
         successModal('Gestión reprogramada', 'La gestión ha sido movida a la nueva fecha.')
       } else {
-        await updateGestion(gestion.id, data)
+        await updateTask(task.id, data, event.id)
         successModal('Gestión editada', 'La gestión ha sido editada exitosamente.')
       }
-      setGestionForm({ open: false, mode: 'agregar', gestion: null })
+      setTaskForm({ open: false, mode: 'create', task: null })
       load()
     } catch {
-      setGestionForm({ open: false, mode: 'agregar', gestion: null })
+      setTaskForm({ open: false, mode: 'create', task: null })
       errorModal('Error', 'Ha ocurrido un error al guardar la gestión, inténtalo de nuevo.')
     }
   }
@@ -168,8 +171,8 @@ export default function EventDetailPage() {
   async function handleDeleteConfirm() {
     setMutating(true)
     try {
-      if (deleteTarget.type === 'gestion') {
-        await deleteGestion(deleteTarget.id)
+      if (deleteTarget.type === 'task') {
+        await deleteTask(deleteTarget.id)
         setDeleteTarget(null)
         successModal('Gestión eliminada', 'La gestión ha sido eliminada.')
       } else {
@@ -188,9 +191,9 @@ export default function EventDetailPage() {
     }
   }
 
-  async function handlePostpone(gestion) {
+  async function handlePostpone(task) {
     try {
-      await postponeGestion(gestion.id)
+      await postponeGestion(task.id)
       successModal('Gestión pospuesta', 'La gestión se ha movido al siguiente día.')
       load()
     } catch {
@@ -302,17 +305,17 @@ export default function EventDetailPage() {
                   Gestiones logísticas
                 </h2>
                 <p className="text-sm text-muted mt-0.5">
-                  {gestiones.length === 0
+                  {tasks.length === 0
                     ? 'Aún no has definido tu plan de trabajo logístico.'
-                    : `${gestiones.length} gestión${gestiones.length !== 1 ? 'es' : ''} en el plan`}
+                    : `${tasks.length} gestión${tasks.length !== 1 ? 'es' : ''} en el plan`}
                 </p>
               </div>
-              <Button onClick={() => setGestionForm({ open: true, mode: 'agregar', gestion: null })}>
+              <Button onClick={() => setTaskForm({ open: true, mode: 'create', task: null })}>
                 + Agregar gestión
               </Button>
             </div>
 
-            {gestiones.length === 0 ? (
+            {tasks.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center bg-white rounded-xl border border-dashed border-edge">
                 <span
                   role="img"
@@ -326,20 +329,20 @@ export default function EventDetailPage() {
                   Reserva de salón, invitaciones, catering y proveedores son ejemplos de gestiones
                   que puedes planear aquí.
                 </p>
-                <Button onClick={() => setGestionForm({ open: true, mode: 'agregar', gestion: null })}>
+                <Button onClick={() => setTaskForm({ open: true, mode: 'create', task: null })}>
                   + Agregar gestión
                 </Button>
               </div>
             ) : (
               <ul className="space-y-3" role="list">
-                {gestiones.map((g) => (
-                  <li key={g.id}>
-                    <GestionCard
-                      gestion={g}
+                {tasks.map((task) => (
+                  <li key={task.id}>
+                    <TaskCard
+                      task={task}
                       onPostpone={handlePostpone}
-                      onReprogram={() => setGestionForm({ open: true, mode: 'reprogramar', gestion: g })}
-                      onEdit={() => setGestionForm({ open: true, mode: 'editar', gestion: g })}
-                      onDelete={() => setDeleteTarget({ type: 'gestion', id: g.id, name: g.name })}
+                      onReschedule={() => setTaskForm({ open: true, mode: 'reschedule', task: task })}
+                      onEdit={() => setTaskForm({ open: true, mode: 'edit', task: task })}
+                      onDelete={() => setDeleteTarget({ type: 'task', id: task.id, name: task.name })}
                     />
                   </li>
                 ))}
@@ -349,13 +352,13 @@ export default function EventDetailPage() {
         </>
       )}
 
-      <GestionFormModal
-        open={gestionForm.open}
-        mode={gestionForm.mode}
+      <TaskFormModal
+        open={taskForm.open}
+        mode={taskForm.mode}
         event={event}
-        gestion={gestionForm.gestion}
-        onSave={handleGestionSave}
-        onClose={() => setGestionForm({ open: false, mode: 'agregar', gestion: null })}
+        task={taskForm.task}
+        onSave={handleTaskSave}
+        onClose={() => setTaskForm({ open: false, mode: 'create', task: null })}
       />
 
       <ConfirmModal

@@ -1,12 +1,78 @@
-const LS_EVENTS = 'eficacia.events.v1'
-const LS_GESTIONES = 'eficacia.gestiones.v1'
-
+const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:8000/api').replace(/\/$/, '')
 const EVENT_COLORS = ['#3b6fe0', '#7c3aed', '#0891b2', '#16a34a', '#d97706', '#dc2626']
+const EVENT_TYPES = ['boda', 'social', 'corporativo', 'cumpleanos', 'otro']
 
-const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+async function apiFetch(path, options = {}) {
+  const response = await fetch(`${API_BASE}${path}`, {
+    headers: {
+      'Content-Type': 'application/json',
+      ...(options.headers || {}),
+    },
+    ...options,
+  })
 
-const uid = (prefix) =>
-  `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
+  const text = await response.text()
+  let payload = null
+
+  if (text) {
+    try {
+      payload = JSON.parse(text)
+    } catch {
+      payload = text
+    }
+  }
+
+  if (!response.ok) {
+    throw payload || new Error(`Request failed: ${response.status}`)
+  }
+
+  return payload
+}
+
+function normalizeDateTime(value) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return toDateKey(date)
+}
+
+function normalizeEvent(raw = {}) {
+  return {
+    id: raw.id,
+    name: raw.name || '',
+    type: raw.event_type || raw.type || '',
+    client: raw.client_contact || raw.client || '',
+    date: normalizeDateTime(raw.event_date || raw.date),
+    location: raw.location || '',
+    color: raw.color || EVENT_COLORS[(Number(raw.id) || 0) % EVENT_COLORS.length],
+  }
+}
+
+function normalizeTask(raw = {}, event = null) {
+  const hours = Number(raw.estimated_hours ?? raw.hours ?? 0)
+  return {
+    id: raw.id,
+    eventId: raw.event ?? event?.id ?? null,
+    name: raw.name || '',
+    dueDate: raw.due_date || raw.dueDate || '',
+    hours: Number.isFinite(hours) ? hours : 0,
+    note: raw.description || raw.note || '',
+    done: raw.state === 'done' || raw.state === 'completed' || Boolean(raw.done),
+    postponed: Boolean(raw.postponed),
+    eventName: event?.name || raw.event_name || '',
+    eventColor: event?.color || raw.event_color || '#6b7280',
+    priority: raw.priority || 'normal',
+    type: raw.type || 'task',
+    parent: raw.parent ?? null,
+  }
+}
+
+function computeProgress(tasks) {
+  const total = tasks.length
+  const done = tasks.filter((task) => task.done).length
+  const percent = total === 0 ? 0 : Math.round((done / total) * 100)
+  return { total, done, percent }
+}
 
 export function toDateKey(date) {
   const y = date.getFullYear()
@@ -32,308 +98,292 @@ export function formatHours(hours) {
   return `${rounded} h`
 }
 
-export function getGestionStatus(gestion, today = todayKey()) {
-  if (gestion.done) return 'hecha'
-  if (gestion.dueDate < today) return 'vencida'
-  return 'pendiente'
+export function getTaskStatus(task, today = todayKey()) {
+  if (task.done) return 'done'
+  if (task.dueDate < today) return 'overdue'
+  return 'pending'
 }
 
-export function eventProgress(gestiones) {
-  const total = gestiones.length
-  const done = gestiones.filter((g) => g.done).length
+export function getGestionStatus(task, today = todayKey()) {
+  return getTaskStatus(task, today)
+}
+
+export function eventProgress(tasks) {
+  const total = tasks.length
+  const done = tasks.filter((task) => task.done).length
   const percent = total === 0 ? 0 : Math.round((done / total) * 100)
   return { total, done, percent }
 }
 
-function readRaw(key) {
-  try {
-    const raw = localStorage.getItem(key)
-    return raw ? JSON.parse(raw) : null
-  } catch {
-    return null
+function mapEventType(type) {
+  const normalized = String(type || '').trim().toLowerCase()
+  return EVENT_TYPES.includes(normalized) ? normalized : 'otro'
+}
+
+function buildEventPayload(data) {
+  const payload = {}
+
+  if (Object.prototype.hasOwnProperty.call(data, 'name')) {
+    payload.name = String(data.name ?? '').trim()
   }
-}
-
-function writeRaw(key, value) {
-  localStorage.setItem(key, JSON.stringify(value))
-}
-
-function seedEvents() {
-  return [
-    {
-      id: 'e1',
-      name: 'Boda de Laura',
-      type: 'Social',
-      client: 'Laura Gómez',
-      date: addDays(90),
-      location: 'Hacienda Las Mercedes',
-      notes: 'Ceremonia al atardecer, 120 invitados.',
-      color: EVENT_COLORS[0],
-      dailyLimitHours: 6,
-      createdAt: addDays(-10),
-    },
-    {
-      id: 'e2',
-      name: 'Conferencia Tech',
-      type: 'Corporativo',
-      client: 'TechSummit S.L.',
-      date: addDays(20),
-      location: 'Centro de Convenciones',
-      notes: 'Cuatro salas paralelas y transmisión en vivo.',
-      color: EVENT_COLORS[1],
-      dailyLimitHours: 6,
-      createdAt: addDays(-7),
-    },
-  ]
-}
-
-function seedGestiones() {
-  return [
-    { id: 'g1', eventId: 'e1', name: 'Reservar salón', dueDate: addDays(-5), hours: 1.5, done: true, postponed: false, note: 'Salón principal reservado.' },
-    { id: 'g2', eventId: 'e1', name: 'Enviar invitaciones', dueDate: addDays(-3), hours: 2, done: true, postponed: false, note: '' },
-    { id: 'g3', eventId: 'e1', name: 'Confirmar menú de catering', dueDate: addDays(0), hours: 3, done: false, postponed: false, note: '' },
-    { id: 'g4', eventId: 'e1', name: 'Coordinar proveedores', dueDate: addDays(0), hours: 3.5, done: false, postponed: false, note: '' },
-    { id: 'g5', eventId: 'e1', name: 'Organizar decoración', dueDate: addDays(3), hours: 2.5, done: false, postponed: false, note: '' },
-    { id: 'g6', eventId: 'e2', name: 'Auditar aforo del recinto', dueDate: addDays(-1), hours: 1.5, done: true, postponed: false, note: '' },
-    { id: 'g7', eventId: 'e2', name: 'Contratar equipo audiovisual', dueDate: addDays(0), hours: 2, done: false, postponed: false, note: '' },
-    { id: 'g8', eventId: 'e2', name: 'Diseñar agenda de ponentes', dueDate: addDays(2), hours: 3, done: false, postponed: false, note: '' },
-    { id: 'g9', eventId: 'e2', name: 'Enviar invitaciones VIP', dueDate: addDays(5), hours: 1, done: false, postponed: false, note: '' },
-  ]
-}
-
-function ensureSeed() {
-  if (!readRaw(LS_EVENTS)) {
-    writeRaw(LS_EVENTS, seedEvents())
-    writeRaw(LS_GESTIONES, seedGestiones())
+  if (Object.prototype.hasOwnProperty.call(data, 'event_type') || Object.prototype.hasOwnProperty.call(data, 'type')) {
+    payload.event_type = mapEventType(data.event_type ?? data.type)
   }
+  if (Object.prototype.hasOwnProperty.call(data, 'client_contact') || Object.prototype.hasOwnProperty.call(data, 'client')) {
+    payload.client_contact = String(data.client_contact ?? data.client ?? '').trim()
+  }
+  if (Object.prototype.hasOwnProperty.call(data, 'event_date') || Object.prototype.hasOwnProperty.call(data, 'date')) {
+    const rawDate = data.event_date ?? data.date
+    if (rawDate) {
+      const normalizedDate = rawDate.includes('T') || rawDate.includes('Z')
+        ? rawDate
+        : new Date(`${rawDate}T12:00:00`).toISOString()
+      payload.event_date = normalizedDate
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(data, 'location')) {
+    payload.location = String(data.location ?? '').trim()
+  }
+
+  return payload
 }
 
-function readEvents() {
-  ensureSeed()
-  return readRaw(LS_EVENTS) || []
+function buildTaskPayload(data) {
+  const payload = {}
+
+  if (Object.prototype.hasOwnProperty.call(data, 'name')) {
+    payload.name = String(data.name ?? '').trim()
+  }
+  if (Object.prototype.hasOwnProperty.call(data, 'due_date') || Object.prototype.hasOwnProperty.call(data, 'dueDate')) {
+    payload.due_date = data.due_date ?? data.dueDate ?? ''
+  }
+  if (Object.prototype.hasOwnProperty.call(data, 'estimated_hours') || Object.prototype.hasOwnProperty.call(data, 'hours')) {
+    const value = data.estimated_hours ?? data.hours
+    payload.estimated_hours = value === '' || value === null || value === undefined ? value : Number(value)
+  }
+  if (Object.prototype.hasOwnProperty.call(data, 'description') || Object.prototype.hasOwnProperty.call(data, 'note')) {
+    payload.description = data.description ?? data.note ?? ''
+  }
+  if (Object.prototype.hasOwnProperty.call(data, 'type')) {
+    payload.type = data.type
+  }
+  if (Object.prototype.hasOwnProperty.call(data, 'parent')) {
+    payload.parent = data.parent === '' || data.parent === null ? null : Number(data.parent)
+  }
+
+  return payload
 }
 
-function readGestiones() {
-  ensureSeed()
-  return readRaw(LS_GESTIONES) || []
-}
-
-function getAllEvents() {
-  return readEvents()
-}
-
-function getGestionesOfEvent(eventId) {
-  return readGestiones().filter((g) => g.eventId === eventId)
+async function fetchEventTasks(eventId) {
+  const tasks = await apiFetch(`/events/${eventId}/tasks/`)
+  return tasks.map((task) => normalizeTask(task))
 }
 
 export async function listEvents() {
-  await delay(500)
-  return getAllEvents()
+  const data = await apiFetch('/events/')
+  return data.map((event) => normalizeEvent(event))
 }
 
 export async function listEventsWithProgress() {
-  await delay(600)
-  return getAllEvents().map((event) => ({
-    ...event,
-    progress: eventProgress(getGestionesOfEvent(event.id)),
-  }))
+  const events = await listEvents()
+  const rows = []
+
+  for (const event of events) {
+    const detail = await apiFetch(`/events/${event.id}/`)
+    const tasks = (detail.tasks || []).map((task) => normalizeTask(task, event))
+    const progress = computeProgress(tasks)
+    rows.push({
+      ...event,
+      progress,
+      color: event.color,
+    })
+  }
+
+  return rows
 }
 
 export async function getEvent(id) {
-  await delay(400)
-  const event = getAllEvents().find((e) => e.id === id)
-  return event || null
+  const data = await apiFetch(`/events/${id}/`)
+  return normalizeEvent(data)
 }
 
 export async function getEventDetail(id) {
-  await delay(600)
-  const event = getAllEvents().find((e) => e.id === id)
-  if (!event) return null
-  const gestiones = getGestionesOfEvent(id).sort((a, b) =>
-    a.dueDate.localeCompare(b.dueDate)
-  )
-  return { event, gestiones, progress: eventProgress(gestiones) }
+  const detail = await apiFetch(`/events/${id}/`)
+  const event = normalizeEvent(detail)
+  const tasks = (detail.tasks || []).map((task) => normalizeTask(task, event))
+  return {
+    event,
+    gestiones: tasks,
+    tasks,
+    progress: computeProgress(tasks),
+  }
 }
 
 export async function createEvent(data) {
-  await delay(600)
-  const events = readEvents()
-  const event = {
-    id: uid('ev'),
-    name: data.name,
-    type: data.type || '',
-    client: data.client || '',
-    date: data.date,
-    location: data.location || '',
-    notes: data.notes || '',
-    dailyLimitHours: Number(data.dailyLimitHours) || 6,
-    color: EVENT_COLORS[events.length % EVENT_COLORS.length],
-    createdAt: todayKey(),
-  }
-  events.push(event)
-  writeRaw(LS_EVENTS, events)
-  return event
+  const created = await apiFetch('/events/', {
+    method: 'POST',
+    body: JSON.stringify(buildEventPayload(data)),
+  })
+  return normalizeEvent(created)
 }
 
 export async function updateEvent(id, data) {
-  await delay(500)
-  const events = readEvents()
-  const index = events.findIndex((e) => e.id === id)
-  if (index === -1) throw new Error('not_found')
-  events[index] = { ...events[index], ...data, id }
-  writeRaw(LS_EVENTS, events)
-  return events[index]
+  const updated = await apiFetch(`/events/${id}/`, {
+    method: 'PATCH',
+    body: JSON.stringify(buildEventPayload(data)),
+  })
+  return normalizeEvent(updated)
 }
 
 export async function deleteEvent(id) {
-  await delay(500)
-  const events = readEvents().filter((e) => e.id !== id)
-  writeRaw(LS_EVENTS, events)
-  const gestiones = readGestiones().filter((g) => g.eventId !== id)
-  writeRaw(LS_GESTIONES, gestiones)
+  await apiFetch(`/events/${id}/`, {
+    method: 'DELETE',
+  })
+}
+
+export async function createTask(eventId, data) {
+  const created = await apiFetch(`/events/${eventId}/tasks/`, {
+    method: 'POST',
+    body: JSON.stringify(buildTaskPayload(data)),
+  })
+  const event = await getEvent(eventId)
+  return normalizeTask(created, event)
 }
 
 export async function createGestion(eventId, data) {
-  await delay(500)
-  const gestiones = readGestiones()
-  const gestion = {
-    id: uid('ge'),
-    eventId,
-    name: data.name,
-    dueDate: data.dueDate,
-    hours: Number(data.hours),
-    note: data.note || '',
-    done: false,
-    postponed: false,
-  }
-  gestiones.push(gestion)
-  writeRaw(LS_GESTIONES, gestiones)
-  return gestion
+  return createTask(eventId, data)
 }
 
-export async function updateGestion(id, data) {
-  await delay(500)
-  const gestiones = readGestiones()
-  const index = gestiones.findIndex((g) => g.id === id)
-  if (index === -1) throw new Error('not_found')
-  gestiones[index] = { ...gestiones[index], ...data, id }
-  writeRaw(LS_GESTIONES, gestiones)
-  return gestiones[index]
+export async function getTaskDetail(id) {
+  const data = await apiFetch(`/tasks/${id}/`)
+  return normalizeTask(data)
+}
+
+export async function updateTask(id, data, eventId = null) {
+  const updated = await apiFetch(`/tasks/${id}/`, {
+    method: 'PATCH',
+    body: JSON.stringify(buildTaskPayload(data)),
+  })
+
+  return normalizeTask(updated, { id: eventId ?? null, name: '' })
+}
+
+export async function updateGestion(id, data, eventId = null) {
+  return updateTask(id, data, eventId)
+}
+
+export async function deleteTask(id) {
+  await apiFetch(`/tasks/${id}/`, { method: 'DELETE' })
 }
 
 export async function deleteGestion(id) {
-  await delay(400)
-  const gestiones = readGestiones().filter((g) => g.id !== id)
-  writeRaw(LS_GESTIONES, gestiones)
+  return deleteTask(id)
 }
 
-export async function markGestionDone(id, note) {
-  await delay(300)
-  updateGestion(id, { done: true, note: note || '' })
+export async function markGestionDone(id, note = '') {
+  const current = await apiFetch(`/tasks/${id}/`)
+  const payload = {
+    description: note || current.description || '',
+    state: 'done',
+  }
+  return apiFetch(`/tasks/${id}/`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
 }
 
 export async function postponeGestion(id) {
-  await delay(300)
-  const gestiones = readGestiones()
-  const index = gestiones.findIndex((g) => g.id === id)
-  if (index === -1) return
-  const next = addDays(1)
-  if (gestiones[index].dueDate <= todayKey()) {
-    gestiones[index] = { ...gestiones[index], dueDate: next, postponed: true }
-  } else {
-    const d = new Date(`${gestiones[index].dueDate}T00:00:00`)
-    d.setDate(d.getDate() + 1)
-    gestiones[index] = { ...gestiones[index], dueDate: toDateKey(d), postponed: true }
-  }
-  writeRaw(LS_GESTIONES, gestiones)
-  return gestiones[index]
+  const current = await apiFetch(`/tasks/${id}/`)
+  const currentDate = new Date(`${current.due_date}T00:00:00`)
+  currentDate.setDate(currentDate.getDate() + 1)
+  const nextDate = toDateKey(currentDate)
+  return apiFetch(`/tasks/${id}/`, {
+    method: 'PATCH',
+    body: JSON.stringify({ due_date: nextDate }),
+  })
 }
 
 export async function getConflictForDate(eventId, date, { excludeId = null, addHours = 0 } = {}) {
-  await delay(250)
-  const event = getAllEvents().find((e) => e.id === eventId)
-  if (!event) return null
-  const pendingThatDay = getGestionesOfEvent(eventId).filter(
-    (g) => !g.done && !g.postponed && g.dueDate === date && g.id !== excludeId
+  const tasks = await fetchEventTasks(eventId)
+  const pendingThatDay = tasks.filter(
+    (task) => !task.done && task.dueDate === date && String(task.id) !== String(excludeId)
   )
-  const scheduled = pendingThatDay.reduce((sum, g) => sum + Number(g.hours), 0) + Number(addHours)
+
+  const scheduled = pendingThatDay.reduce((sum, task) => sum + Number(task.hours), 0) + Number(addHours)
   const rounded = Math.round(scheduled * 10) / 10
-  if (rounded <= Number(event.dailyLimitHours)) return null
+  const limitHours = 6
+
+  if (rounded <= limitHours) return null
   return {
     date,
     scheduledHours: rounded,
-    limitHours: Number(event.dailyLimitHours),
-    overloadIds: pendingThatDay.map((g) => g.id),
+    limitHours,
+    overloadIds: pendingThatDay.map((task) => task.id),
   }
-}
-
-function computeTodayConflicts() {
-  const today = todayKey()
-  const conflicts = []
-  for (const event of getAllEvents()) {
-    const todayPending = getGestionesOfEvent(event.id).filter(
-      (g) => !g.done && g.dueDate === today
-    )
-    if (todayPending.length === 0) continue
-    const scheduled = todayPending.reduce((sum, g) => sum + Number(g.hours), 0)
-    const rounded = Math.round(scheduled * 10) / 10
-    if (rounded > Number(event.dailyLimitHours)) {
-      conflicts.push({
-        eventId: event.id,
-        eventName: event.name,
-        eventColor: event.color,
-        date: today,
-        scheduledHours: rounded,
-        limitHours: Number(event.dailyLimitHours),
-        overloadIds: todayPending.map((g) => g.id),
-      })
-    }
-  }
-  return conflicts
 }
 
 const PRIORITY_ORDER = { vencida: 0, urgent: 1, overload: 2, upcoming: 3, normal: 4 }
 
-function priorityOf(gestion, eventId, conflicts) {
+function priorityOf(task, eventId, conflicts) {
   const today = todayKey()
-  const onConflictedDay = conflicts.some(
-    (c) => c.eventId === eventId && c.date === gestion.dueDate
-  )
-  if (gestion.dueDate < today) return 'vencida'
-  if (gestion.dueDate === today) return onConflictedDay ? 'overload' : 'urgent'
-  const d = new Date(`${gestion.dueDate}T00:00:00`)
+  const onConflictedDay = conflicts.some((conflict) => conflict.eventId === eventId && conflict.date === task.dueDate)
+
+  if (task.dueDate < today) return 'vencida'
+  if (task.dueDate === today) return onConflictedDay ? 'overload' : 'urgent'
+  const due = new Date(`${task.dueDate}T00:00:00`)
   const limit = new Date()
   limit.setDate(limit.getDate() + 2)
-  if (d <= limit) return 'upcoming'
+  if (due <= limit) return 'upcoming'
   return 'normal'
 }
 
 export async function getTodayData() {
-  await delay(500)
-  const events = getAllEvents()
-  const byId = new Map(events.map((e) => [e.id, e]))
-  const conflicts = computeTodayConflicts()
-  const items = readGestiones()
-    .filter((g) => !g.done)
-    .map((g) => {
-      const event = byId.get(g.eventId)
-      return {
-        ...g,
-        eventName: event ? event.name : '',
-        eventColor: event ? event.color : '#6b7280',
-        priority: priorityOf(g, g.eventId, conflicts),
-      }
-    })
-    .filter((g) => g.priority !== 'normal')
+  const events = await listEvents()
+  const items = []
+  const conflicts = []
+
+  for (const event of events) {
+    const tasks = await fetchEventTasks(event.id)
+    const pending = tasks.filter((task) => !task.done)
+
+    for (const task of pending) {
+      items.push({ ...task, eventName: event.name, eventColor: event.color, priority: 'normal' })
+    }
+
+    const todayTasks = pending.filter((task) => task.dueDate === todayKey())
+    const scheduledHours = todayTasks.reduce((sum, task) => sum + Number(task.hours), 0)
+    if (todayTasks.length && scheduledHours > 6) {
+      conflicts.push({
+        eventId: event.id,
+        eventName: event.name,
+        eventColor: event.color,
+        date: todayKey(),
+        scheduledHours,
+        limitHours: 6,
+        overloadIds: todayTasks.map((task) => task.id),
+      })
+    }
+  }
+
+  for (const item of items) {
+    item.priority = priorityOf(item, item.eventId, conflicts)
+  }
+
+  const filtered = items
+    .filter((item) => item.priority !== 'normal')
     .sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority])
 
-  const eventsWithProgress = events.map((e) => ({
-    ...e,
-    progress: eventProgress(getGestionesOfEvent(e.id)).percent,
-    pendingToday: getGestionesOfEvent(e.id).filter(
-      (g) => !g.done && g.dueDate === todayKey()
-    ).length,
-  }))
+  const eventsWithProgress = []
+  for (const event of events) {
+    const detail = await apiFetch(`/events/${event.id}/`)
+    const taskList = (detail.tasks || []).map((task) => normalizeTask(task, event))
+    const progress = computeProgress(taskList)
+    eventsWithProgress.push({
+      ...event,
+      progress: progress.percent,
+      pendingToday: taskList.filter((task) => !task.done && task.dueDate === todayKey()).length,
+    })
+  }
 
-  return { items, conflicts, events: eventsWithProgress }
+  return { items: filtered, conflicts, events: eventsWithProgress }
 }

@@ -24,6 +24,18 @@ Los datos se persisten en `localStorage` (`eficacia.events.v1` / `eficacia.gesti
 - Node.js **20.19+** (o la versión que soporte Vite 8)
 - npm
 
+## Variables de entorno
+
+Copia `.env.example` a `.env` y ajusta los valores si es necesario:
+
+```bash
+cp .env.example .env
+```
+
+| Variable         | Descripción                                                    | Valor por defecto          |
+| ---------------- | -------------------------------------------------------------- | -------------------------- |
+| `VITE_API_URL`   | URL base de la API del backend (solo las que empiezan con `VITE_` son expuestas al cliente). | `http://localhost:8000/api/` |
+
 ## Cómo iniciar el proyecto
 
 ```bash
