@@ -2,8 +2,7 @@ export default function ProgressBar({ percent, color = 'var(--color-primary)', l
   const safe = Math.min(100, Math.max(0, Math.round(percent)))
   return (
     <div
-      className={`${height} rounded-full overflow-hidden`}
-      style={{ backgroundColor: 'var(--color-surface)' }}
+      className={`${height} rounded-full overflow-hidden bg-surface`}
       role="progressbar"
       aria-valuenow={safe}
       aria-valuemin={0}

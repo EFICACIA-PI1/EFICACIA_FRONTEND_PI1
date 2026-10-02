@@ -1,0 +1,60 @@
+/* LOADER — 5 puntos con los colores de marca (azul → aguamarina del logo) */
+.loader {
+  position: relative;
+  width: 100px;
+  height: 40px;
+  margin-top: 20px; /* la animación sube 20px por encima del contenedor */
+}
+
+.loader-dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  position: absolute;
+  left: 0;
+  top: 0;
+  animation: loader-move 2s linear infinite;
+}
+
+.loader-dot-1 { background: #0060e0; animation-delay: 0s; }
+.loader-dot-2 { background: #0179df; animation-delay: -0.4s; }
+.loader-dot-3 { background: #02a5e3; animation-delay: -0.8s; }
+.loader-dot-4 { background: #02ccd4; animation-delay: -1.2s; }
+.loader-dot-5 { background: #0ee9cf; animation-delay: -1.6s; }
+
+@keyframes loader-move {
+  0% {
+    left: 100px;
+    top: 0;
+  }
+  80% {
+    left: 0;
+    top: 0;
+  }
+  85% {
+    left: 0;
+    top: -20px;
+    width: 20px;
+    height: 20px;
+  }
+  90% {
+    width: 40px;
+    height: 15px;
+  }
+  95% {
+    left: 100px;
+    top: -20px;
+    width: 40px;
+    height: 15px;
+  }
+  100% {
+    left: 100px;
+    top: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loader-dot {
+    animation-duration: 6s;
+  }
+}

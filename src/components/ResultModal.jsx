@@ -1,5 +1,6 @@
 import Modal from './Modal'
 import Button from './Button'
+import Icon from './Icon'
 
 export default function ResultModal({ type = 'success', open, title, message, actionLabel, onClose }) {
   const isSuccess = type === 'success'
@@ -12,7 +13,7 @@ export default function ResultModal({ type = 'success', open, title, message, ac
             isSuccess ? 'bg-success-bg text-success' : 'bg-danger-bg text-danger'
           }`}
         >
-          {isSuccess ? '✓' : '✕'}
+          <Icon name={isSuccess ? 'check' : 'close'} className="w-7 h-7" />
         </span>
         <h2 id="result-title" className="text-lg font-semibold text-navy">
           {title}

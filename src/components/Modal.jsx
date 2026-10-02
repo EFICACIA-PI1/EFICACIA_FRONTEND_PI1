@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import useScrollLock from '../hooks/useScrollLock'
 
 const TABBABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
 
@@ -13,6 +14,8 @@ export default function Modal({
 }) {
   const panelRef = useRef(null)
   const restoreRef = useRef(null)
+
+  useScrollLock(open)
 
   useEffect(() => {
     if (!open) return undefined
