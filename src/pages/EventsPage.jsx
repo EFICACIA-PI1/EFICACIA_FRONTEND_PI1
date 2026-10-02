@@ -2,42 +2,42 @@ import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Button from '../components/Button'
 import ProgressBar from '../components/ProgressBar'
-import Skeleton from '../components/Skeleton'
 import ConfirmModal from '../components/ConfirmModal'
+import { useToast } from '../context/ToastContext'
 import ResultModal from '../components/ResultModal'
-import { listEventsWithProgress, deleteEvent } from '../services/eventService'
+import { listEventsWithProgress, deleteEvent } from '../services/eventsApi'
 import { formatDate } from '../utils/format'
-
-function SkeletonCard() {
-  return (
-    <div className="bg-white rounded-xl border border-edge p-5 space-y-3">
-      <Skeleton className="h-5 w-1/3" />
-      <Skeleton className="h-3 w-1/2" />
-      <Skeleton className="h-2 w-full rounded-full" />
-    </div>
-  )
-}
+import usePageTitle from '../hooks/usePageTitle'
+import Icon from '../components/Icon'
+import { EmptyState, ErrorState, LoadingState } from '../components/StateViews'
 
 export default function EventsPage() {
+  usePageTitle('Mis eventos')
   const navigate = useNavigate()
+  const toast = useToast()
   const [state, setState] = useState('loading')
   const [events, setEvents] = useState([])
+  const [loadError, setLoadError] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [mutating, setMutating] = useState(false)
   const [result, setResult] = useState(null)
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal) => {
     try {
-      const data = await listEventsWithProgress()
+      const data = await listEventsWithProgress({ signal })
       setEvents(data)
       setState(data.length === 0 ? 'empty' : 'success')
-    } catch {
+    } catch (err) {
+      if (err.name === 'AbortError') return
+      setLoadError(err)
       setState('error')
     }
   }, [])
 
   useEffect(() => {
-    load()
+    const controller = new AbortController()
+    load(controller.signal)
+    return () => controller.abort()
   }, [load])
 
   function retry() {
@@ -50,11 +50,7 @@ export default function EventsPage() {
     try {
       await deleteEvent(deleteTarget.id)
       setDeleteTarget(null)
-      setResult({
-        type: 'success',
-        title: 'Evento eliminado',
-        message: 'El evento ha sido eliminado junto con sus gestiones.',
-      })
+      toast.success('Evento eliminado junto con sus gestiones.')
       load()
     } catch {
       setDeleteTarget(null)
@@ -69,9 +65,8 @@ export default function EventsPage() {
   }
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-6 max-w-4xl mx-auto w-full">
+    <div className="px-4 sm:px-6 lg:px-8 py-16 max-w-4xl mx-auto w-full">
       <header className="mb-8">
-        <p className="text-xs font-medium uppercase tracking-widest mb-1 text-subtle">Gestión</p>
         <div className="flex items-end justify-between gap-4">
           <h1 className="text-2xl sm:text-3xl font-semibold text-navy font-display">Mis Eventos</h1>
           <Button onClick={() => navigate('/crear')}>+ Nuevo evento</Button>
@@ -85,44 +80,17 @@ export default function EventsPage() {
         </p>
       </header>
 
-      {state === 'loading' && (
-        <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
-          {[0, 1, 2].map((i) => (
-            <SkeletonCard key={i} />
-          ))}
-        </div>
-      )}
+      {state === 'loading' && <LoadingState label="Cargando tus eventos…" />}
 
-      {state === 'error' && (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <span
-            role="img"
-            aria-label="Error al cargar eventos"
-            className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-danger-bg text-2xl font-bold text-danger mb-4"
-          >
-            !
-          </span>
-          <h2 className="text-xl font-semibold text-navy mb-1.5">Error cargando eventos</h2>
-          <p className="text-sm text-muted max-w-sm mb-6">
-            Ha ocurrido un error cargando la información, inténtalo de nuevo.
-          </p>
-          <Button variant="neutral" onClick={retry}>
-            Reintentar
-          </Button>
-        </div>
-      )}
+      {state === 'error' && <ErrorState error={loadError} title="Error cargando eventos" onRetry={retry} />}
 
       {state === 'empty' && (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <span role="img" aria-label="Calendario vacío" className="text-6xl mb-5">
-            🗂️
-          </span>
-          <h2 className="text-xl font-semibold text-gray-800 mb-1">No tienes eventos creados.</h2>
-          <p className="text-sm text-muted max-w-sm mb-6 leading-relaxed">
-            ¿Deseas crear tu primer evento y su plan logístico?
-          </p>
-          <Button onClick={() => navigate('/crear')}>Crear evento</Button>
-        </div>
+        <EmptyState
+          icon="events"
+          title="No tienes eventos creados."
+          description="¿Deseas crear tu primer evento y su plan logístico?"
+          action={<Button onClick={() => navigate('/crear')}>Crear evento</Button>}
+        />
       )}
 
       {state === 'success' && (
@@ -134,11 +102,6 @@ export default function EventsPage() {
               >
                 <div className="flex items-start justify-between gap-3 mb-4">
                   <div className="flex items-start gap-3 min-w-0">
-                    <div
-                      className="w-3 h-3 rounded-full flex-shrink-0 mt-1.5"
-                      style={{ backgroundColor: event.color }}
-                      aria-hidden="true"
-                    />
                     <div className="min-w-0">
                       <h2 className="font-semibold text-gray-900 leading-tight truncate">{event.name}</h2>
                       <p className="text-sm mt-0.5 text-muted truncate">
@@ -152,9 +115,7 @@ export default function EventsPage() {
                     aria-label={`Eliminar evento "${event.name}"`}
                     className="p-2 rounded-lg text-subtle hover:text-danger hover:bg-danger-bg transition-colors"
                   >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
+                    <Icon name="trash" className="w-4 h-4" />
                   </button>
                 </div>
 
@@ -172,13 +133,10 @@ export default function EventsPage() {
                 <div className="space-y-1.5">
                   <div className="flex justify-between text-xs">
                     <span className="text-muted">Progreso global</span>
-                    <span className="font-semibold" style={{ color: event.color }}>
-                      {event.progress.percent}%
-                    </span>
+                    <span className="font-semibold text-primary">{event.progress.percent}%</span>
                   </div>
                   <ProgressBar
                     percent={event.progress.percent}
-                    color={event.color}
                     label={`Progreso del evento ${event.name}`}
                     height="h-1.5"
                   />

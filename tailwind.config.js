@@ -4,8 +4,10 @@ export default {
   theme: {
     extend: {
       colors: {
-        primary: '#3b6fe0',
-        'primary-dark': '#2c5bc7',
+        // Paleta tomada del logo: azul principal y turquesa de acento.
+        primary: '#0060e0',
+        'primary-dark': '#0044b8',
+        accent: '#00b8c4',
         danger: '#dc2626',
         'danger-dark': '#b91c1c',
         'danger-bg': '#fef2f2',
@@ -16,6 +18,9 @@ export default {
         warning: '#d97706',
         'warning-bg': '#fffbeb',
         'warning-border': '#fde68a',
+        'warning-text': '#92400e',
+        'warning-text-dark': '#78350f',
+        'primary-soft': '#e8f1ff',
         neutral: '#475569',
         'neutral-bg': '#f1f5f9',
         'neutral-border': '#cbd5e1',

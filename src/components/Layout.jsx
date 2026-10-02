@@ -1,48 +1,42 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import useScrollLock from '../hooks/useScrollLock'
 import { Outlet, NavLink } from 'react-router-dom'
+import Icon from './Icon'
+import { useAuth } from '../context/AuthContext'
+import logoHorizontal from '../assets/Logo/LogoHorizontal.webp'
 
 const NAV_LINKS = [
-  { to: '/hoy', label: 'Hoy', icon: '📋' },
-  { to: '/eventos', label: 'Mis Eventos', icon: '🗂️' },
-  { to: '/crear', label: 'Crear Evento', icon: '➕' },
-  { to: '/progreso', label: 'Progreso', icon: '📈' },
-]
-
-const MOBILE_LINKS = [
-  { to: '/hoy', label: 'Hoy', icon: '📋' },
-  { to: '/eventos', label: 'Eventos', icon: '🗂️' },
-  { to: '/crear', label: 'Crear', icon: '➕' },
-  { to: '/progreso', label: 'Progreso', icon: '📈' },
+  { to: '/hoy', label: 'Hoy', icon: 'today' },
+  { to: '/eventos', label: 'Mis Eventos', icon: 'events' },
+  { to: '/crear', label: 'Crear Evento', icon: 'plus' },
+  { to: '/progreso', label: 'Progreso', icon: 'progress' },
+  { to: '/perfil', label: 'Mi perfil', icon: 'user' },
 ]
 
 function Brand({ small = false }) {
   return (
-    <div className="flex items-center gap-2">
-      <div
-        className={`${
-          small ? 'w-7 h-7 text-xs' : 'w-8 h-8 text-sm'
-        } rounded-lg flex items-center justify-center text-white font-bold bg-primary font-display`}
-        aria-hidden="true"
-      >
-        EF
-      </div>
-      <span
-        className={`font-semibold text-navy font-display ${small ? 'text-base' : 'text-lg'}`}
-      >
-        EFICACIA
-      </span>
-    </div>
+    <img
+      src={logoHorizontal}
+      alt="Eficacia"
+      className={`w-auto object-contain ${small ? 'h-11 -my-1' : 'h-16 -my-3'}`}
+    />
   )
 }
 
 function linkClass({ isActive }) {
   return [
     'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 text-left',
-    isActive ? 'bg-[#eff4ff] text-primary' : 'text-muted hover:bg-gray-50',
+    isActive ? 'bg-primary-soft text-primary' : 'text-muted hover:bg-gray-50',
   ].join(' ')
 }
 
+// Zona de «Cerrar sesión»: único bloque del menú con el color de marca.
+const logoutZoneClass = 'p-3 bg-primary'
+const logoutButtonClass =
+  'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold text-white hover:bg-white/15 transition-colors text-left'
+
 function Sidebar() {
+  const { logout } = useAuth()
   return (
     <nav
       aria-label="Navegación principal"
@@ -58,7 +52,7 @@ function Sidebar() {
             <NavLink to={link.to} className={linkClass} aria-label={link.label}>
               {({ isActive }) => (
                 <>
-                  <span aria-hidden="true">{link.icon}</span>
+                  <Icon name={link.icon} />
                   {link.label}
                   {isActive && (
                     <span
@@ -73,25 +67,11 @@ function Sidebar() {
         ))}
       </ul>
 
-      <div className="p-4 border-t border-edge">
-        <div className="flex items-center gap-3">
-          <div
-            className="w-9 h-9 rounded-full flex items-center justify-center text-white font-semibold text-sm flex-shrink-0 bg-purple-700"
-            aria-label="Avatar de María López"
-          >
-            ML
-          </div>
-          <div className="overflow-hidden">
-            <p className="text-sm font-medium text-gray-800 truncate">María López</p>
-            <p className="text-xs text-subtle truncate">Organizadora independiente</p>
-          </div>
-          <span
-            className="ml-auto text-[10px] px-2 py-0.5 rounded-full bg-neutral-bg text-neutral border border-neutral-border font-medium"
-            title="Usuario demo: el login llega en el Sprint 2"
-          >
-            Demo
-          </span>
-        </div>
+      <div className={logoutZoneClass}>
+        <button type="button" onClick={logout} className={logoutButtonClass}>
+          <Icon name="logout" />
+          Cerrar sesión
+        </button>
       </div>
     </nav>
   )
@@ -99,79 +79,86 @@ function Sidebar() {
 
 function MobileTopBar() {
   const [menuOpen, setMenuOpen] = useState(false)
+  const { logout } = useAuth()
+  const closeRef = useRef(null)
+  const openRef = useRef(null)
+
+  useScrollLock(menuOpen)
+
+  useEffect(() => {
+    if (!menuOpen) return undefined
+    closeRef.current?.focus()
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setMenuOpen(false)
+        openRef.current?.focus()
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [menuOpen])
 
   return (
-    <header className="lg:hidden bg-white border-b border-edge px-4 py-3 flex items-center justify-between sticky top-0 z-40">
-      <Brand small />
+    <header className="lg:hidden bg-white border-b border-edge px-4 py-3 flex items-center gap-3 sticky top-0 z-40">
       <button
-        aria-label={menuOpen ? 'Cerrar menú' : 'Abrir menú'}
+        ref={openRef}
+        type="button"
+        aria-label="Abrir menú"
         aria-expanded={menuOpen}
         aria-controls="mobile-menu"
-        onClick={() => setMenuOpen((v) => !v)}
-        className="p-2 rounded-lg text-muted hover:bg-gray-50"
+        onClick={() => setMenuOpen(true)}
+        className="p-2 -ml-2 rounded-lg text-muted hover:bg-gray-50"
       >
-        {menuOpen ? '✕' : '☰'}
+        <Icon name="menu" />
       </button>
+      <Brand small />
 
-      {menuOpen && (
-        <div
-          id="mobile-menu"
-          className="absolute top-full left-0 right-0 bg-white border-b border-edge shadow-md p-3 flex flex-col gap-1"
-        >
-          {NAV_LINKS.map((link) => (
-            <NavLink
-              key={link.to}
-              to={link.to}
-              onClick={() => setMenuOpen(false)}
-              className={({ isActive }) =>
-                [
-                  'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium',
-                  isActive ? 'bg-[#eff4ff] text-primary' : 'text-muted',
-                ].join(' ')
-              }
-            >
-              <span aria-hidden="true">{link.icon}</span>
-              {link.label}
-            </NavLink>
-          ))}
+      <div
+        className={`fixed inset-0 z-50 bg-black/40 transition-opacity duration-200 ${
+          menuOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}
+        onClick={() => setMenuOpen(false)}
+        aria-hidden="true"
+      />
+
+      <nav
+        id="mobile-menu"
+        aria-label="Navegación principal"
+        inert={!menuOpen}
+        className={`fixed inset-y-0 left-0 z-[51] w-72 max-w-[85vw] bg-white shadow-xl flex flex-col transition-transform duration-200 ease-out ${
+          menuOpen ? 'translate-x-0' : '-translate-x-full invisible'
+        }`}
+      >
+        <div className="px-4 py-3 border-b border-edge flex items-center justify-between">
+          <Brand />
+          <button
+            ref={closeRef}
+            type="button"
+            aria-label="Cerrar menú"
+            onClick={() => setMenuOpen(false)}
+            className="p-2 -mr-2 rounded-lg text-muted hover:bg-gray-50"
+          >
+            <Icon name="close" />
+          </button>
         </div>
-      )}
-
-      {menuOpen && (
-        <div
-          className="fixed inset-0 z-[-1]"
-          onClick={() => setMenuOpen(false)}
-          aria-hidden="true"
-        />
-      )}
+        <ul className="flex flex-col gap-1 p-3 flex-1 overflow-y-auto" role="list">
+          {NAV_LINKS.map((link) => (
+            <li key={link.to}>
+              <NavLink to={link.to} onClick={() => setMenuOpen(false)} className={linkClass}>
+                <Icon name={link.icon} />
+                {link.label}
+              </NavLink>
+            </li>
+          ))}
+        </ul>
+        <div className={logoutZoneClass}>
+          <button type="button" onClick={logout} className={logoutButtonClass}>
+            <Icon name="logout" />
+            Cerrar sesión
+          </button>
+        </div>
+      </nav>
     </header>
-  )
-}
-
-function MobileBottomNav() {
-  return (
-    <nav
-      aria-label="Navegación inferior"
-      className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-edge flex z-30"
-    >
-      {MOBILE_LINKS.map((link) => (
-        <NavLink
-          key={link.to}
-          to={link.to}
-          className={({ isActive }) =>
-            [
-              'flex-1 flex flex-col items-center gap-0.5 py-2 text-xs font-medium transition-colors',
-              isActive ? 'text-primary' : 'text-[#9ca3af]',
-            ].join(' ')
-          }
-        >
-          <span className="text-base" aria-hidden="true">
-            {link.icon}
-          </span>
-          {link.label}
-        </NavLink>
-      ))}
-    </nav>
   )
 }
 
@@ -187,10 +174,9 @@ export default function Layout() {
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0">
         <MobileTopBar />
-        <main id="main-content" className="flex-1 pb-16 lg:pb-0">
+        <main id="main-content" className="flex-1">
           <Outlet />
         </main>
-        <MobileBottomNav />
       </div>
     </div>
   )

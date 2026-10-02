@@ -3,50 +3,19 @@ import { useParams, useNavigate } from 'react-router-dom'
 import Button from '../components/Button'
 import StatusBadge from '../components/StatusBadge'
 import ProgressBar from '../components/ProgressBar'
-import Skeleton from '../components/Skeleton'
 import ConfirmModal from '../components/ConfirmModal'
+import Icon from '../components/Icon'
+import { useToast } from '../context/ToastContext'
 import ResultModal from '../components/ResultModal'
 import TaskFormModal from '../components/TaskFormModal'
-import {
-  getEventDetail,
-  createTask,
-  updateTask,
-  deleteTask,
-  deleteEvent,
-  postponeGestion,
-  formatHours,
-  getTaskStatus,
-} from '../services/eventService'
+import EventFormModal from '../components/EventFormModal'
+import { getEventDetail, updateEvent, deleteEvent } from '../services/eventsApi'
+import { eventTypeLabel } from '../utils/events'
+import { createTask, updateTask, deleteTask, postponeTask } from '../services/tasksApi'
+import { formatHours, getTaskStatus } from '../utils/tasks'
 import { formatDate, formatDateShort } from '../utils/format'
-
-const LOADING_CARD = () => (
-  <div className="bg-white rounded-xl border border-edge p-5 space-y-3">
-    <Skeleton className="h-5 w-1/3" />
-    <Skeleton className="h-3 w-1/2" />
-    <Skeleton className="h-2 w-full rounded-full" />
-  </div>
-)
-
-function ErrorState({ onBack }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-16 text-center">
-      <span
-        role="img"
-        aria-label="Error cargando el evento"
-        className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-danger-bg text-2xl font-bold text-danger mb-4"
-      >
-        !
-      </span>
-      <h2 className="text-xl font-semibold text-navy mb-1.5">No se ha podido cargar el evento</h2>
-      <p className="text-sm text-muted max-w-sm mb-6">
-        Ha ocurrido un error cargando la información, inténtalo de nuevo.
-      </p>
-      <Button variant="neutral" onClick={onBack}>
-        ← Volver a eventos
-      </Button>
-    </div>
-  )
-}
+import usePageTitle from '../hooks/usePageTitle'
+import { ErrorState, LoadingState } from '../components/StateViews'
 
 function TaskCard({ task, onPostpone, onReschedule, onEdit, onDelete }) {
   const status = getTaskStatus(task)
@@ -67,8 +36,8 @@ function TaskCard({ task, onPostpone, onReschedule, onEdit, onDelete }) {
               <StatusBadge task={task} />
             </div>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-sm text-muted">
-              <span>⏱️ {formatHours(task.hours)}</span>
-              <span>📅 {formatDateShort(task.dueDate)}</span>
+              <span className="inline-flex items-center gap-1"><Icon name="clock" className="w-4 h-4" />{formatHours(task.hours)}</span>
+              <span className="inline-flex items-center gap-1"><Icon name="calendar" className="w-4 h-4" />{formatDateShort(task.dueDate)}</span>
             </div>
             {task.note && (
               <p className="text-xs text-muted mt-2 bg-surface border border-edge rounded-lg px-3 py-2">
@@ -90,7 +59,7 @@ function TaskCard({ task, onPostpone, onReschedule, onEdit, onDelete }) {
           </Button>
           <Button
             size="sm"
-            variant="danger"
+            variant="subtle-danger"
             onClick={() => onDelete(task)}
             aria-label={`Eliminar gestión "${task.name}"`}
           >
@@ -103,22 +72,26 @@ function TaskCard({ task, onPostpone, onReschedule, onEdit, onDelete }) {
 }
 
 export default function EventDetailPage() {
+  usePageTitle('Detalle del evento')
   const { id } = useParams()
   const navigate = useNavigate()
+  const toast = useToast()
 
   const [state, setState] = useState('loading')
   const [event, setEvent] = useState(null)
   const [tasks, setTasks] = useState([])
+  const [loadError, setLoadError] = useState(null)
   const [progress, setProgress] = useState({ total: 0, done: 0, percent: 0 })
 
   const [taskForm, setTaskForm] = useState({ open: false, mode: 'create', task: null })
+  const [eventFormOpen, setEventFormOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [mutating, setMutating] = useState(false)
   const [result, setResult] = useState(null)
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal) => {
     try {
-      const detail = await getEventDetail(id)
+      const detail = await getEventDetail(id, { signal })
       if (!detail) {
         setState('error')
         return
@@ -127,21 +100,33 @@ export default function EventDetailPage() {
       setTasks(detail.tasks)
       setProgress(detail.progress)
       setState('success')
-    } catch {
+    } catch (err) {
+      if (err.name === 'AbortError') return
+      setLoadError(err)
       setState('error')
     }
   }, [id])
 
   useEffect(() => {
-    load()
+    const controller = new AbortController()
+    load(controller.signal)
+    return () => controller.abort()
   }, [load])
-
-  function successModal(title, message, hub) {
-    setResult({ type: 'success', title, message, hub })
-  }
 
   function errorModal(title, message) {
     setResult({ type: 'error', title, message })
+  }
+
+  async function handleEventSave(data) {
+    try {
+      await updateEvent(event.id, data)
+      setEventFormOpen(false)
+      toast.success('Evento actualizado.')
+      load()
+    } catch (err) {
+      setEventFormOpen(false)
+      errorModal('Error', err.message || 'Ha ocurrido un error al guardar el evento, inténtalo de nuevo.')
+    }
   }
 
   async function handleTaskSave(data) {
@@ -152,13 +137,13 @@ export default function EventDetailPage() {
       }
       if (mode === 'create') {
         await createTask(event.id, data)
-        successModal('Gestión creada', 'La gestión se ha agregado al plan logístico.')
+        toast.success('Gestión agregada al plan logístico.')
       } else if (mode === 'reschedule') {
         await updateTask(task.id, data, event.id)
-        successModal('Gestión reprogramada', 'La gestión ha sido movida a la nueva fecha.')
+        toast.success('Gestión reprogramada a la nueva fecha.')
       } else {
         await updateTask(task.id, data, event.id)
-        successModal('Gestión editada', 'La gestión ha sido editada exitosamente.')
+        toast.success('Gestión actualizada.')
       }
       setTaskForm({ open: false, mode: 'create', task: null })
       load()
@@ -174,13 +159,13 @@ export default function EventDetailPage() {
       if (deleteTarget.type === 'task') {
         await deleteTask(deleteTarget.id)
         setDeleteTarget(null)
-        successModal('Gestión eliminada', 'La gestión ha sido eliminada.')
+        toast.success('Gestión eliminada.')
       } else {
         await deleteEvent(event.id)
         setDeleteTarget(null)
-        successModal('Evento eliminado', 'El evento ha sido eliminado junto con sus gestiones.', {
-          after: () => navigate('/eventos', { replace: true }),
-        })
+        toast.success('Evento eliminado junto con sus gestiones.')
+        navigate('/eventos', { replace: true })
+        return
       }
       load()
     } catch {
@@ -193,8 +178,8 @@ export default function EventDetailPage() {
 
   async function handlePostpone(task) {
     try {
-      await postponeGestion(task.id)
-      successModal('Gestión pospuesta', 'La gestión se ha movido al siguiente día.')
+      await postponeTask(task.id)
+      toast.success('Gestión pospuesta al siguiente día.')
       load()
     } catch {
       errorModal('Error', 'Ha ocurrido un error al posponer la gestión, inténtalo de nuevo.')
@@ -202,40 +187,43 @@ export default function EventDetailPage() {
   }
 
   function closeResult() {
-    if (result?.hub?.after) {
-      result.hub.after()
-      return
-    }
     setResult(null)
   }
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-6 max-w-4xl mx-auto w-full">
+    <div className="px-4 sm:px-6 lg:px-8 py-16 max-w-4xl mx-auto w-full">
       <div className="mb-6 flex items-center justify-between gap-3">
         <Button variant="neutral" size="sm" onClick={() => navigate('/eventos')}>
           ← Volver a mis eventos
         </Button>
         {state === 'success' && event && (
-          <Button
-            variant="danger"
-            size="sm"
-            onClick={() => setDeleteTarget({ type: 'evento' })}
-            aria-label={`Eliminar evento "${event.name}"`}
-          >
-            Eliminar evento
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="neutral" size="sm" onClick={() => setEventFormOpen(true)}>
+              <Icon name="edit" className="w-4 h-4" />
+              Editar evento
+            </Button>
+            <Button
+              variant="subtle-danger"
+              size="sm"
+              onClick={() => setDeleteTarget({ type: 'evento' })}
+              aria-label={`Eliminar evento "${event.name}"`}
+            >
+              Eliminar evento
+            </Button>
+          </div>
         )}
       </div>
 
-      {state === 'loading' && (
-        <div className="space-y-4">
-          <LOADING_CARD />
-          <LOADING_CARD />
-          <LOADING_CARD />
-        </div>
-      )}
+      {state === 'loading' && <LoadingState label="Cargando el evento…" />}
 
-      {state === 'error' && <ErrorState onBack={() => navigate('/eventos')} />}
+      {state === 'error' && (
+        <ErrorState
+          error={loadError}
+          title="No se ha podido cargar el evento"
+          onRetry={() => navigate('/eventos')}
+          retryLabel="← Volver a eventos"
+        />
+      )}
 
       {state === 'success' && event && (
         <>
@@ -246,25 +234,23 @@ export default function EventDetailPage() {
               </h1>
               {event.type && (
                 <span className="text-xs px-2 py-0.5 rounded-full bg-neutral-bg text-neutral border border-neutral-border font-medium">
-                  {event.type}
+                  {eventTypeLabel(event.type)}
                 </span>
               )}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6 text-sm text-muted">
-              <div>
-                <p className="font-medium text-gray-500 mb-0.5 text-xs uppercase tracking-wider">Cliente</p>
-                <p>{event.client || '—'}</p>
-              </div>
-              <div>
-                <p className="font-medium text-gray-500 mb-0.5 text-xs uppercase tracking-wider">Fecha del evento</p>
-                <p>{formatDate(event.date)}</p>
-              </div>
-              <div>
-                <p className="font-medium text-gray-500 mb-0.5 text-xs uppercase tracking-wider">Lugar</p>
-                <p>{event.location || '—'}</p>
-              </div>
-            </div>
+            <dl className="flex flex-wrap gap-x-6 gap-y-1 mb-6 text-sm">
+              {[
+                { label: 'Cliente', value: event.client },
+                { label: 'Fecha del evento', value: formatDate(event.date) },
+                { label: 'Lugar', value: event.location },
+              ].map((item) => (
+                <div key={item.label} className="flex gap-1.5">
+                  <dt className="font-semibold text-gray-700">{item.label}:</dt>
+                  <dd className="text-muted">{item.value || '—'}</dd>
+                </div>
+              ))}
+            </dl>
 
             <section
               aria-label="Progreso de preparación del evento"
@@ -274,7 +260,7 @@ export default function EventDetailPage() {
                 <p className="text-sm font-medium text-gray-700">Progreso de preparación</p>
                 {progress.percent === 100 ? (
                   <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-success-bg text-success border border-success-border font-medium">
-                    <span aria-hidden="true">✔</span> Gestión completa
+                    <Icon name="check" className="w-4 h-4 inline" /> Gestión completa
                   </span>
                 ) : (
                   <span
@@ -310,20 +296,16 @@ export default function EventDetailPage() {
                     : `${tasks.length} gestión${tasks.length !== 1 ? 'es' : ''} en el plan`}
                 </p>
               </div>
-              <Button onClick={() => setTaskForm({ open: true, mode: 'create', task: null })}>
-                + Agregar gestión
-              </Button>
+              {tasks.length > 0 && (
+                <Button onClick={() => setTaskForm({ open: true, mode: 'create', task: null })}>
+                  + Agregar gestión
+                </Button>
+              )}
             </div>
 
             {tasks.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center bg-white rounded-xl border border-dashed border-edge">
-                <span
-                  role="img"
-                  aria-label="Libro abierto, sin gestiones"
-                  className="text-5xl mb-4"
-                >
-                  📖
-                </span>
+                <span className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-primary/10 text-primary mb-4"><Icon name="book" className="w-7 h-7" /></span>
                 <h3 className="text-lg font-semibold text-gray-800 mb-1.5">¿Deseas agregar tu primera gestión?</h3>
                 <p className="text-sm text-muted max-w-sm mb-6">
                   Reserva de salón, invitaciones, catering y proveedores son ejemplos de gestiones
@@ -350,6 +332,15 @@ export default function EventDetailPage() {
             )}
           </section>
         </>
+      )}
+
+      {event && (
+        <EventFormModal
+          open={eventFormOpen}
+          event={event}
+          onSave={handleEventSave}
+          onClose={() => setEventFormOpen(false)}
+        />
       )}
 
       <TaskFormModal

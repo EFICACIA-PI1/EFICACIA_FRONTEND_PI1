@@ -1,10 +1,13 @@
 import { forwardRef } from 'react'
+import Spinner from './Spinner'
 
 const VARIANTS = {
   primary: 'bg-primary text-white hover:bg-primary-dark',
   danger: 'bg-danger text-white hover:bg-danger-dark',
   warning: 'bg-warning text-white hover:bg-amber-700',
   neutral: 'bg-white text-navy border border-edge hover:bg-gray-50',
+  // Acción destructiva discreta: gris en reposo, rojo solo al pasar el cursor o enfocar.
+  'subtle-danger': 'bg-transparent text-muted hover:text-danger hover:bg-danger-bg focus-visible:text-danger',
 }
 
 const SIZES = {
@@ -24,12 +27,7 @@ const Button = forwardRef(function Button(
       disabled={loading || props.disabled}
       {...props}
     >
-      {loading && (
-        <span
-          aria-hidden="true"
-          className="inline-block w-3.5 h-3.5 rounded-full border-2 border-current border-t-transparent animate-spin opacity-70"
-        />
-      )}
+      {loading && <Spinner />}
       {children}
     </button>
   )
