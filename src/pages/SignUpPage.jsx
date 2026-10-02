@@ -119,21 +119,22 @@ export default function SignUpPage() {
     >
       <FormAlert message={serverError} />
       <form onSubmit={handleSubmit} noValidate className="space-y-4">
-        {textField('fullName', 'Nombre completo', { autoComplete: 'name', autoFocus: true })}
+        {textField('fullName', 'Nombre completo', { autoComplete: 'name', autoFocus: true, placeholder: 'Ej. María Pérez' })}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {textField('username', 'Usuario', { autoComplete: 'username' })}
+          {textField('username', 'Usuario', { autoComplete: 'username', placeholder: 'Ej. maria.perez' })}
           {textField('documentNumber', 'Documento', { inputMode: 'numeric', placeholder: '6 a 12 dígitos' })}
         </div>
-        {textField('email', 'Correo electrónico', { type: 'email', autoComplete: 'email', inputMode: 'email' })}
+        {textField('email', 'Correo electrónico', { type: 'email', autoComplete: 'email', inputMode: 'email', placeholder: 'correo@ejemplo.com' })}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {textField('phone', 'Teléfono', { type: 'tel', autoComplete: 'tel', placeholder: '+573001234567' })}
-          {textField('address', 'Dirección', { optional: true, autoComplete: 'street-address' })}
+          {textField('phone', 'Teléfono', { type: 'tel', autoComplete: 'tel', placeholder: '300 123 4567' })}
+          {textField('address', 'Dirección', { optional: true, autoComplete: 'street-address', placeholder: 'Calle 10 # 5-20' })}
         </div>
         <Field label="Contraseña" htmlFor="password" required hint="Mínimo 8 caracteres." error={errors.password}>
           <PasswordInput
             id="password"
             name="password"
             autoComplete="new-password"
+            placeholder="Contraseña"
             value={form.password}
             onChange={(e) => update('password', e.target.value)}
             error={errors.password}
@@ -144,6 +145,7 @@ export default function SignUpPage() {
             id="confirm"
             name="confirm"
             autoComplete="new-password"
+            placeholder="Repite tu contraseña"
             value={form.confirm}
             onChange={(e) => update('confirm', e.target.value)}
             error={errors.confirm}

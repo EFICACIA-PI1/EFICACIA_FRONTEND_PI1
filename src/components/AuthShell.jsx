@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { authInputCls, authInputErrorCls } from '../utils/forms'
+import Icon from './Icon'
 import logoColor from '../assets/Logo/LogoEficacia.webp'
 
 export function AuthShell({ title, subtitle, children, footer }) {
@@ -46,14 +47,14 @@ export function FormAlert({ message }) {
   )
 }
 
-export function PasswordInput({ id, error, ...props }) {
+export function PasswordInput({ id, error, baseCls = authInputCls, errorCls = authInputErrorCls, ...props }) {
   const [visible, setVisible] = useState(false)
   return (
     <div className="relative">
       <input
         id={id}
         type={visible ? 'text' : 'password'}
-        className={`${error ? authInputErrorCls : authInputCls} pr-20`}
+        className={`${error ? errorCls : baseCls} pr-11`}
         aria-invalid={Boolean(error)}
         aria-describedby={error ? `${id}-error` : undefined}
         {...props}
@@ -61,10 +62,11 @@ export function PasswordInput({ id, error, ...props }) {
       <button
         type="button"
         onClick={() => setVisible((v) => !v)}
+        aria-label={visible ? 'Ocultar contraseña' : 'Mostrar contraseña'}
         aria-pressed={visible}
-        className="absolute inset-y-0 right-0 px-3 text-xs font-medium text-primary hover:text-primary-dark rounded-r-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+        className="absolute inset-y-0 right-0 px-3 flex items-center text-muted hover:text-primary rounded-r-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
       >
-        {visible ? 'Ocultar' : 'Mostrar'}
+        <Icon name={visible ? 'eyeOff' : 'eye'} className="w-5 h-5" />
       </button>
     </div>
   )
