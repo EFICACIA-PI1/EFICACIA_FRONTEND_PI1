@@ -2,9 +2,15 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Button from '../components/Button'
 import Field from '../components/Field'
+import { useToast } from '../context/ToastContext'
 import ResultModal from '../components/ResultModal'
 import { inputCls, inputErrorCls } from '../utils/forms'
-import { createEvent, todayKey } from '../services/eventService'
+import TaskDraftList from '../components/TaskDraftList'
+import { createTaskDraft, validateTaskDrafts } from '../utils/taskDrafts'
+import { createEvent } from '../services/eventsApi'
+import { createTask } from '../services/tasksApi'
+import { todayKey } from '../utils/dates'
+import usePageTitle from '../hooks/usePageTitle'
 
 const EVENT_TYPES = [
   'Boda',
@@ -26,15 +32,33 @@ const emptyForm = {
 }
 
 export default function CreatePage() {
+  usePageTitle('Crear evento')
   const navigate = useNavigate()
+  const toast = useToast()
   const [form, setForm] = useState(emptyForm)
   const [errors, setErrors] = useState({})
+  const [drafts, setDrafts] = useState([])
+  const [draftErrors, setDraftErrors] = useState({})
   const [submitting, setSubmitting] = useState(false)
   const [result, setResult] = useState(null)
 
   function setField(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }))
     setErrors((prev) => ({ ...prev, [field]: undefined }))
+  }
+
+  function addDraft() {
+    setDrafts((prev) => [...prev, createTaskDraft()])
+  }
+
+  function removeDraft(key) {
+    setDrafts((prev) => prev.filter((draft) => draft.key !== key))
+    setDraftErrors((prev) => ({ ...prev, [key]: undefined }))
+  }
+
+  function changeDraft(key, field, value) {
+    setDrafts((prev) => prev.map((draft) => (draft.key === key ? { ...draft, [field]: value } : draft)))
+    setDraftErrors((prev) => ({ ...prev, [key]: { ...prev[key], [field]: undefined } }))
   }
 
   function validate(values) {
@@ -59,8 +83,17 @@ export default function CreatePage() {
     e.preventDefault()
     if (submitting) return
     const nextErrors = validate(form)
-    if (Object.values(nextErrors).some(Boolean)) {
-      setErrors(nextErrors)
+    const limitHours = form.dailyLimitHours === '' ? 6 : Number(form.dailyLimitHours)
+    const nextDraftErrors = validateTaskDrafts(drafts, limitHours)
+    setErrors(nextErrors)
+    setDraftErrors(nextDraftErrors)
+    if (Object.values(nextErrors).some(Boolean) || Object.keys(nextDraftErrors).length) {
+      // Lleva el foco al primer campo de gestión con error para que sea visible.
+      const firstKey = Object.keys(nextDraftErrors)[0]
+      if (firstKey !== undefined && !Object.values(nextErrors).some(Boolean)) {
+        const firstField = Object.keys(nextDraftErrors[firstKey])[0]
+        document.getElementById(`tk-${firstKey}-${firstField}`)?.focus()
+      }
       return
     }
     setSubmitting(true)
@@ -72,9 +105,32 @@ export default function CreatePage() {
         date: form.date,
         location: form.location.trim(),
         notes: form.notes.trim(),
-        dailyLimitHours: form.dailyLimitHours === '' ? 6 : Number(form.dailyLimitHours),
+        dailyLimitHours: limitHours,
       })
-      setResult({ type: 'success', event })
+
+      // El evento ya existe: si alguna gestión falla no se pierde el evento, se avisa.
+      const results = await Promise.allSettled(
+        drafts.map((draft) =>
+          createTask(event.id, {
+            name: draft.name,
+            dueDate: draft.dueDate,
+            hours: Number(draft.hours),
+            note: draft.note,
+          })
+        )
+      )
+      const failed = results.filter((r) => r.status === 'rejected').length
+      if (failed > 0) {
+        toast.error(
+          `El evento se creó, pero ${failed} gestión${failed !== 1 ? 'es' : ''} no se pudo guardar. Agrégala${failed !== 1 ? 's' : ''} desde el detalle.`
+        )
+      } else if (drafts.length > 0) {
+        toast.success(`Evento creado con ${drafts.length} gestión${drafts.length !== 1 ? 'es' : ''}.`)
+      } else {
+        toast.success('Evento creado. Ahora agrega sus gestiones.')
+      }
+      navigate(`/evento/${event.id}`)
+      return
     } catch {
       setResult({ type: 'error', event: null })
     } finally {
@@ -83,17 +139,12 @@ export default function CreatePage() {
   }
 
   function closeResult() {
-    if (result?.type === 'success' && result.event) {
-      navigate(`/evento/${result.event.id}`)
-    } else {
-      setResult(null)
-    }
+    setResult(null)
   }
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-6 max-w-2xl mx-auto w-full">
+    <div className="px-4 sm:px-6 lg:px-8 py-16 max-w-4xl mx-auto w-full">
       <header className="mb-8">
-        <p className="text-xs font-medium uppercase tracking-widest mb-1 text-subtle">Nuevo</p>
         <h1 className="text-2xl sm:text-3xl font-semibold text-navy font-display">Crear Evento</h1>
         <p className="text-sm mt-1 text-muted">
           Completa los datos básicos para empezar a gestionar tu evento.
@@ -202,9 +253,19 @@ export default function CreatePage() {
           />
         </Field>
 
+        <TaskDraftList
+          drafts={drafts}
+          errors={draftErrors}
+          onChange={changeDraft}
+          onAdd={addDraft}
+          onRemove={removeDraft}
+        />
+
         <div className="pt-2 flex flex-col sm:flex-row gap-3">
           <Button type="submit" loading={submitting} className="sm:w-auto">
-            Crear evento
+            {drafts.length > 0
+              ? `Crear evento y ${drafts.length} gestión${drafts.length !== 1 ? 'es' : ''}`
+              : 'Crear evento'}
           </Button>
           <Button type="button" variant="neutral" onClick={() => navigate('/eventos')} disabled={submitting}>
             Cancelar
@@ -215,13 +276,9 @@ export default function CreatePage() {
       <ResultModal
         type={result?.type}
         open={Boolean(result)}
-        title={result?.type === 'success' ? 'Evento creado' : 'Error'}
-        message={
-          result?.type === 'success'
-            ? 'El evento ha sido creado exitosamente.'
-            : 'Ha ocurrido un error al crear el evento, inténtalo de nuevo.'
-        }
-        actionLabel={result?.type === 'success' ? 'Aceptar' : 'Cerrar'}
+        title="Error"
+        message="Ha ocurrido un error al crear el evento, inténtalo de nuevo."
+        actionLabel="Cerrar"
         onClose={closeResult}
       />
     </div>

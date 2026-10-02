@@ -1,9 +1,11 @@
 import { useRef, useState } from 'react'
+import Icon from './Icon'
 import Modal from './Modal'
 import Button from './Button'
 import Field from './Field'
 import { inputCls, inputErrorCls } from '../utils/forms'
-import { getConflictForDate, todayKey } from '../services/eventService'
+import { getConflictForDate } from '../services/tasksApi'
+import { todayKey } from '../utils/dates'
 import { formatDateShort } from '../utils/format'
 
 const MODE_META = {
@@ -113,7 +115,6 @@ function TaskFormFields({ mode, event, task, onSave, onClose }) {
   return (
     <form onSubmit={handleSubmit} noValidate>
       <div className="px-6 py-5 border-b border-edge">
-        <p className="text-xs font-medium uppercase tracking-widest mb-1 text-subtle">Plan logístico</p>
         <h2 id="gestion-form-title" className="text-lg font-semibold text-navy">
           {meta.title}
         </h2>
@@ -151,7 +152,6 @@ function TaskFormFields({ mode, event, task, onSave, onClose }) {
             label="Horas estimadas"
             htmlFor="ge-hours"
             required
-            hint="Duración estimada para completarla."
             error={errors.hours}
           >
             <input
@@ -184,23 +184,20 @@ function TaskFormFields({ mode, event, task, onSave, onClose }) {
         {conflict && (
           <div
             role="alert"
-            className="rounded-xl p-4 border border-warning-border"
-            style={{ backgroundColor: 'var(--color-warning-bg)' }}
+            className="rounded-xl p-4 border border-warning-border bg-warning-bg"
           >
             <div className="flex items-start gap-3">
-              <span aria-hidden="true" className="text-xl" aria-label="Alerta de conflicto">
-                ⚠️
-              </span>
+              <Icon name="alert" className="w-5 h-5 text-warning mt-0.5" />
               <div>
-                <p className="font-semibold text-sm" style={{ color: '#92400e' }}>
+                <p className="font-semibold text-sm text-warning-text">
                   Conflicto de sobrecarga
                 </p>
-                <p className="text-sm mt-1 leading-relaxed" style={{ color: '#78350f' }}>
+                <p className="text-sm mt-1 leading-relaxed text-warning-text-dark">
                   Este cambio supera tu límite diario de <strong>{conflict.limitHours} h</strong> de
                   gestión para el {formatDateShort(conflict.date)}. Quedarían programadas{' '}
                   <strong>{conflict.scheduledHours} h</strong> (límite: {conflict.limitHours} h).
                 </p>
-                <p className="text-sm mt-1" style={{ color: '#78350f' }}>
+                <p className="text-sm mt-1 text-warning-text-dark">
                   Elige otra fecha o reduce las horas estimadas para resolverlo.
                 </p>
                 <div className="flex flex-wrap gap-2 mt-3">
