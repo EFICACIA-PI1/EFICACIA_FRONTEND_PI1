@@ -70,6 +70,7 @@ export default function LoginPage() {
             type="text"
             autoComplete="username"
             autoFocus
+            placeholder="Nombre de usuario"
             value={form.username}
             onChange={(e) => update('username', e.target.value)}
             className={errors.username ? authInputErrorCls : authInputCls}
@@ -82,6 +83,7 @@ export default function LoginPage() {
             id="password"
             name="password"
             autoComplete="current-password"
+            placeholder="************"
             value={form.password}
             onChange={(e) => update('password', e.target.value)}
             error={errors.password}

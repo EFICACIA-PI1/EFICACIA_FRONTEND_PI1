@@ -5,6 +5,8 @@ import {
   Check,
   Clock,
   EditPencil,
+  Eye,
+  EyeClosed,
   Folder,
   GraphUp,
   InfoCircle,
@@ -41,6 +43,8 @@ const ICONS = {
   trash: Trash,
   user: User,
   edit: EditPencil,
+  eye: Eye,
+  eyeOff: EyeClosed,
 }
 
 export default function Icon({ name, className = 'w-5 h-5', ...props }) {

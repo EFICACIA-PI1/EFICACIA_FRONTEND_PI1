@@ -49,7 +49,7 @@ function TaskCard({ task, onPostpone, onReschedule, onEdit, onDelete }) {
 
         <div className="flex items-center gap-1 flex-wrap justify-end shrink-0">
           <Button size="sm" variant="neutral" onClick={() => onPostpone(task)}>
-            Posponer
+            Posponer para mañana
           </Button>
           <Button size="sm" variant="neutral" onClick={() => onReschedule(task)}>
             Reprogramar
