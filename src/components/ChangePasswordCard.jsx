@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import Button from './Button'
 import Field from './Field'
+import { PasswordInput } from './AuthShell'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { inputCls, inputErrorCls } from '../utils/forms'
@@ -60,18 +61,18 @@ export default function ChangePasswordCard() {
     }
   }
 
-  function passwordField(id, name, label, props = {}) {
+  function passwordField(id, name, label, placeholder, props = {}) {
     return (
       <Field label={label} htmlFor={`cp-${id}`} required error={errors[id]} {...props.field}>
-        <input
+        <PasswordInput
           id={`cp-${id}`}
-          type="password"
           autoComplete={name}
           value={form[id]}
           onChange={(e) => update(id, e.target.value)}
-          aria-invalid={Boolean(errors[id])}
-          aria-describedby={errors[id] ? `cp-${id}-error` : undefined}
-          className={errors[id] ? inputErrorCls : inputCls}
+          error={errors[id]}
+          baseCls={inputCls}
+          errorCls={inputErrorCls}
+          placeholder={placeholder}
         />
       </Field>
     )
@@ -95,11 +96,11 @@ export default function ChangePasswordCard() {
 
       {open && (
         <form onSubmit={handleSubmit} noValidate className="px-5 pb-5 space-y-4 border-t border-edge pt-5">
-          {passwordField('oldPassword', 'current-password', 'Contraseña actual')}
-          {passwordField('password', 'new-password', 'Nueva contraseña', {
+          {passwordField('oldPassword', 'current-password', 'Contraseña actual', 'Tu contraseña actual')}
+          {passwordField('password', 'new-password', 'Nueva contraseña', 'Mínimo 8 caracteres', {
             field: { hint: 'Mínimo 8 caracteres.' },
           })}
-          {passwordField('confirm', 'new-password', 'Confirmar nueva contraseña')}
+          {passwordField('confirm', 'new-password', 'Confirmar nueva contraseña', 'Repite la nueva contraseña')}
           <div className="flex flex-col sm:flex-row gap-3 pt-1">
             <Button type="submit" loading={loading}>
               Guardar contraseña

@@ -4,7 +4,6 @@ import Icon from '../components/Icon'
 import { useToast } from '../context/ToastContext'
 import { useAuth } from '../context/AuthContext'
 import Button from '../components/Button'
-import ProgressBar from '../components/ProgressBar'
 import Modal from '../components/Modal'
 import { inputCls } from '../utils/forms'
 import { getTodayData } from '../services/todayApi'
@@ -138,7 +137,7 @@ function TaskCard({ task, busy, onComplete, onPostpone }) {
           </div>
         </div>
 
-        <div className="flex flex-wrap justify-end gap-2 shrink-0">
+        <div className="flex flex-wrap items-center justify-center self-center gap-2 shrink-0">
         <Button
           size="sm"
           variant="neutral"
@@ -147,7 +146,7 @@ function TaskCard({ task, busy, onComplete, onPostpone }) {
           onClick={() => onComplete(task.id)}
         >
           <Icon name="check" className="w-4 h-4" />
-          Marcar como hecha
+          Hecha
         </Button>
         <Button size="sm" variant="neutral" disabled={busy} onClick={() => onPostpone(task.id)}>
           <Icon name="postpone" className="w-4 h-4" />
@@ -224,7 +223,6 @@ export default function TodayPage() {
   const [loadError, setLoadError] = useState(null)
   const [items, setItems] = useState([])
   const [groups, setGroups] = useState({ vencidas: [], paraHoy: [], proximas: [] })
-  const [events, setEvents] = useState([])
   const [conflicts, setConflicts] = useState([])
   const [modalConflict, setModalConflict] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -235,7 +233,6 @@ export default function TodayPage() {
       setAllEvents(data.allEvents)
       setItems(data.items)
       setGroups(data.groups)
-      setEvents(data.events)
       setConflicts(data.conflicts)
       setState(data.items.length === 0 ? 'empty' : 'success')
     } catch (err) {
@@ -375,48 +372,6 @@ export default function TodayPage() {
                 </div>
               ))}
             </div>
-          )}
-
-          {events.length > 0 && (
-            <section aria-labelledby="events-heading">
-              <h2 id="events-heading" className="text-xs font-semibold uppercase tracking-widest mb-3 text-subtle">
-                Eventos activos hoy
-              </h2>
-              <div
-                className="grid gap-4"
-                style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}
-              >
-                {events.map((event) => (
-                  <article
-                    key={event.id}
-                    className="bg-white rounded-xl p-5 border border-edge"
-                    aria-label={`${event.name}: ${event.progress}% completado, ${event.pendingToday} gestiones hoy`}
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <h3 className="font-semibold text-sm text-gray-800 leading-tight font-display">
-                          {event.name}
-                        </h3>
-                        <p className="text-xs mt-0.5 text-subtle">
-                          {event.pendingToday} gestión{event.pendingToday !== 1 ? 'es' : ''} hoy
-                        </p>
-                      </div>
-                    </div>
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs text-muted">Progreso global</span>
-                        <span className="text-xs font-semibold text-primary">{event.progress}%</span>
-                      </div>
-                      <ProgressBar
-                        percent={event.progress}
-                        label={`Progreso de ${event.name}`}
-                        height="h-1.5"
-                      />
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </section>
           )}
 
           <div className="space-y-6">

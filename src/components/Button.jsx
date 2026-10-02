@@ -5,6 +5,9 @@ const VARIANTS = {
   primary: 'bg-primary text-white hover:bg-primary-dark',
   danger: 'bg-danger text-white hover:bg-danger-dark',
   warning: 'bg-warning text-white hover:bg-amber-700',
+  // Acciones de marca: relleno suave (principal) y contorno (secundaria).
+  soft: 'bg-primary-soft text-primary hover:bg-primary hover:text-white',
+  outline: 'bg-white text-primary border border-primary/40 hover:bg-primary-soft hover:border-primary',
   neutral: 'bg-white text-navy border border-edge hover:bg-gray-50',
   // Acción destructiva discreta: gris en reposo, rojo solo al pasar el cursor o enfocar.
   'subtle-danger': 'bg-transparent text-muted hover:text-danger hover:bg-danger-bg focus-visible:text-danger',
