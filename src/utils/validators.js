@@ -1,7 +1,6 @@
 // Reglas espejo de backend/api/validators.py para dar feedback antes de enviar.
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const PHONE_RE = /^\+?\d{7,15}$/
-const DOCUMENT_RE = /^\d{6,12}$/
 
 export const MIN_PASSWORD_LENGTH = 8
 
@@ -27,13 +26,6 @@ export function validatePhone(value) {
   const phone = String(value ?? '').trim()
   if (!phone) return 'Ingresa tu teléfono.'
   if (!PHONE_RE.test(phone)) return 'Usa entre 7 y 15 dígitos, con un «+» opcional al inicio.'
-  return ''
-}
-
-export function validateDocument(value) {
-  const doc = String(value ?? '').trim()
-  if (!doc) return 'Ingresa tu número de documento.'
-  if (!DOCUMENT_RE.test(doc)) return 'El documento debe tener entre 6 y 12 dígitos.'
   return ''
 }
 

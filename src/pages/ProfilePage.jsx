@@ -90,9 +90,7 @@ function ProfileForm({ user, onCancel, onSaved }) {
         {field('phone', 'Teléfono', { type: 'tel', autoComplete: 'tel' })}
         {field('address', 'Dirección', { required: false, autoComplete: 'street-address' })}
       </div>
-      <p className="text-xs text-muted">
-        El usuario y el número de documento no se pueden modificar.
-      </p>
+      <p className="text-xs text-muted">El usuario no se puede modificar.</p>
       <div className="flex flex-col sm:flex-row gap-3 pt-1">
         <Button type="submit" loading={loading}>
           Guardar cambios
@@ -116,7 +114,6 @@ export default function ProfilePage() {
     { label: 'Usuario', value: user?.username },
     { label: 'Correo electrónico', value: user?.email },
     { label: 'Teléfono', value: user?.phone },
-    { label: 'Documento', value: user?.documentNumber },
     { label: 'Dirección', value: user?.address },
   ]
 

@@ -24,7 +24,6 @@ export async function register(form) {
       password_confirm: form.confirm,
       full_name: form.fullName.trim(),
       phone: form.phone.trim(),
-      document_number: form.documentNumber.trim(),
       address: form.address.trim(),
     }),
   })
@@ -95,6 +94,5 @@ export function normalizeUser(raw = {}) {
     fullName: raw.full_name || '',
     phone: raw.phone || '',
     address: raw.address || '',
-    documentNumber: raw.document_number || '',
   }
 }
