@@ -107,6 +107,7 @@ function TodayEmptyState({ onViewPlan, filtered, onClear }) {
         </Button>
       }
       className="py-24"
+      variant="today"
     />
   )
 }

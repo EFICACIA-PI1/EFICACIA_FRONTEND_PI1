@@ -13,14 +13,21 @@ export function LoadingState({ label = 'Cargando…', className = 'py-24' }) {
   )
 }
 
-export function EmptyState({ icon, title, description, action, className = 'py-20' }) {
+export function EmptyState({ icon, title, description, action, className = 'py-20', variant = 'default' }) {
+  const today = variant === 'today'
   return (
     <div className={`flex flex-col items-center justify-center text-center ${className}`}>
-      <span className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 text-primary mb-5">
+      <span className={`inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 text-primary ${today ? 'mb-4' : 'mb-5'}`}>
         <Icon name={icon} className="w-8 h-8" />
       </span>
-      <h2 className="text-xl font-semibold text-gray-800 mb-1 font-display">{title}</h2>
-      {description && <p className="text-sm text-muted max-w-sm mb-6 leading-relaxed">{description}</p>}
+      <h2 className={`text-xl font-semibold text-gray-800 font-display ${today ? 'mb-2' : 'mb-1'}`}>
+        {title}
+      </h2>
+      {description && (
+        <p className={`text-sm text-muted mb-6 ${today ? 'max-w-lg leading-7' : 'max-w-sm leading-relaxed'}`}>
+          {description}
+        </p>
+      )}
       {action}
     </div>
   )
