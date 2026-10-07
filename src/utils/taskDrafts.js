@@ -18,16 +18,16 @@ export function validateTaskDrafts(drafts, limitHours) {
 
   for (const draft of drafts) {
     const row = {}
-    if (!draft.name.trim()) row.name = 'Este campo es obligatorio.'
+    if (!draft.name.trim()) row.name = 'Escribe el nombre de la gestión.'
 
-    if (!draft.dueDate) row.dueDate = 'Este campo es obligatorio.'
+    if (!draft.dueDate) row.dueDate = 'Elige la fecha de la gestión.'
     else if (!/^\d{4}-\d{2}-\d{2}$/.test(draft.dueDate)) row.dueDate = 'Ingresa una fecha válida.'
-    else if (draft.dueDate < today) row.dueDate = 'La fecha límite no puede ser anterior a hoy.'
+    else if (draft.dueDate < today) row.dueDate = 'La fecha de la gestión no puede ser anterior a hoy.'
 
     const hours = Number(draft.hours)
-    if (draft.hours === '') row.hours = 'Este campo es obligatorio.'
-    else if (Number.isNaN(hours)) row.hours = 'Ingresa un número válido.'
-    else if (hours <= 0) row.hours = 'Deben ser mayores a 0.'
+    if (draft.hours === '') row.hours = 'Escribe las horas estimadas.'
+    else if (Number.isNaN(hours)) row.hours = 'Escribe un número válido de horas.'
+    else if (hours <= 0) row.hours = 'Las horas estimadas deben ser mayores que 0.'
 
     if (!row.dueDate && !row.hours) {
       hoursByDate[draft.dueDate] = (hoursByDate[draft.dueDate] || 0) + hours

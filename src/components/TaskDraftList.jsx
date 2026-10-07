@@ -4,7 +4,7 @@ import Icon from './Icon'
 import { inputCls, inputErrorCls } from '../utils/forms'
 import { todayKey } from '../utils/dates'
 
-export default function TaskDraftList({ drafts, errors, onChange, onAdd, onRemove }) {
+export default function TaskDraftList({ drafts, errors, onChange, onBlur, onAdd, onRemove }) {
   return (
     <section aria-labelledby="drafts-heading" className="pt-2">
       <div className="flex items-start justify-between gap-3 mb-3">
@@ -48,6 +48,8 @@ export default function TaskDraftList({ drafts, errors, onChange, onAdd, onRemov
                     placeholder="Ej. Reservar salón principal"
                     value={draft.name}
                     onChange={(e) => onChange(draft.key, 'name', e.target.value)}
+                    onBlur={() => onBlur(draft.key, 'name')}
+                    aria-required="true"
                     aria-invalid={Boolean(rowErrors.name)}
                     aria-describedby={rowErrors.name ? `${id('name')}-error` : undefined}
                     className={rowErrors.name ? inputErrorCls : inputCls}
@@ -62,6 +64,8 @@ export default function TaskDraftList({ drafts, errors, onChange, onAdd, onRemov
                       min={todayKey()}
                       value={draft.dueDate}
                       onChange={(e) => onChange(draft.key, 'dueDate', e.target.value)}
+                      onBlur={() => onBlur(draft.key, 'dueDate')}
+                      aria-required="true"
                       aria-invalid={Boolean(rowErrors.dueDate)}
                       aria-describedby={rowErrors.dueDate ? `${id('dueDate')}-error` : undefined}
                       className={rowErrors.dueDate ? inputErrorCls : inputCls}
@@ -76,6 +80,8 @@ export default function TaskDraftList({ drafts, errors, onChange, onAdd, onRemov
                       placeholder="Ej. 2"
                       value={draft.hours}
                       onChange={(e) => onChange(draft.key, 'hours', e.target.value)}
+                      onBlur={() => onBlur(draft.key, 'hours')}
+                      aria-required="true"
                       aria-invalid={Boolean(rowErrors.hours)}
                       aria-describedby={rowErrors.hours ? `${id('hours')}-error` : undefined}
                       className={rowErrors.hours ? inputErrorCls : inputCls}

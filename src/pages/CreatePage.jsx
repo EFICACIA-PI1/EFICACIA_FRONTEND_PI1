@@ -31,6 +31,22 @@ const emptyForm = {
   notes: '',
 }
 
+const EVENT_SERVER_FIELDS = {
+  name: 'name',
+  event_type: 'type',
+  client_contact: 'client',
+  event_date: 'date',
+  location: 'location',
+}
+
+const FIELD_IDS = {
+  name: 'ev-name',
+  type: 'ev-type',
+  client: 'ev-client',
+  date: 'ev-date',
+  location: 'ev-location',
+}
+
 export default function CreatePage() {
   usePageTitle('Crear evento')
   const navigate = useNavigate()
@@ -43,8 +59,19 @@ export default function CreatePage() {
   const [result, setResult] = useState(null)
 
   function setField(field, value) {
-    setForm((prev) => ({ ...prev, [field]: value }))
-    setErrors((prev) => ({ ...prev, [field]: undefined }))
+    const nextForm = { ...form, [field]: value }
+    setForm(nextForm)
+    if (field === 'dailyLimitHours') {
+      setErrors((prev) => ({ ...prev, [field]: undefined }))
+      return
+    }
+    const fieldError = validate(nextForm)[field]
+    setErrors((prev) => ({ ...prev, [field]: fieldError || undefined }))
+  }
+
+  function validateOnBlur(field) {
+    const fieldError = validate(form)[field]
+    if (fieldError) setErrors((prev) => ({ ...prev, [field]: fieldError }))
   }
 
   function addDraft() {
@@ -61,16 +88,26 @@ export default function CreatePage() {
     setDraftErrors((prev) => ({ ...prev, [key]: { ...prev[key], [field]: undefined } }))
   }
 
+  function validateDraftOnBlur(key, field) {
+    const limitHours = form.dailyLimitHours === '' ? 6 : Number(form.dailyLimitHours)
+    const fieldError = validateTaskDrafts(drafts, limitHours)[key]?.[field]
+    if (fieldError) {
+      setDraftErrors((prev) => ({ ...prev, [key]: { ...prev[key], [field]: fieldError } }))
+    }
+  }
+
   function validate(values) {
     const next = {}
-    if (!values.name.trim()) next.name = 'Este campo es obligatorio.'
+    if (!values.name.trim()) next.name = 'Escribe el nombre del evento.'
+    if (!values.client.trim()) next.client = 'Escribe el nombre del cliente o contratante.'
     if (!values.date) {
-      next.date = 'Este campo es obligatorio.'
+      next.date = 'Elige la fecha del evento.'
     } else if (!/^\d{4}-\d{2}-\d{2}$/.test(values.date)) {
       next.date = 'Ingresa una fecha válida.'
     } else if (values.date < todayKey()) {
-      next.date = 'La fecha del evento no puede ser anterior a hoy.'
+      next.date = 'La fecha no puede ser anterior a hoy.'
     }
+    if (!values.location.trim()) next.location = 'Escribe el lugar del evento.'
     if (values.dailyLimitHours !== '') {
       const num = Number(values.dailyLimitHours)
       if (Number.isNaN(num)) next.dailyLimitHours = 'Ingresa un número válido.'
@@ -88,9 +125,11 @@ export default function CreatePage() {
     setErrors(nextErrors)
     setDraftErrors(nextDraftErrors)
     if (Object.values(nextErrors).some(Boolean) || Object.keys(nextDraftErrors).length) {
-      // Lleva el foco al primer campo de gestión con error para que sea visible.
-      const firstKey = Object.keys(nextDraftErrors)[0]
-      if (firstKey !== undefined && !Object.values(nextErrors).some(Boolean)) {
+      const firstEventField = Object.keys(nextErrors)[0]
+      if (firstEventField && FIELD_IDS[firstEventField]) {
+        document.getElementById(FIELD_IDS[firstEventField])?.focus()
+      } else if (!firstEventField) {
+        const firstKey = Object.keys(nextDraftErrors)[0]
         const firstField = Object.keys(nextDraftErrors[firstKey])[0]
         document.getElementById(`tk-${firstKey}-${firstField}`)?.focus()
       }
@@ -131,8 +170,14 @@ export default function CreatePage() {
       }
       navigate(`/evento/${event.id}`)
       return
-    } catch {
-      setResult({ type: 'error', event: null })
+    } catch (err) {
+      const fieldErrors = {}
+      for (const [serverField, message] of Object.entries(err.fields || {})) {
+        const field = EVENT_SERVER_FIELDS[serverField]
+        if (field) fieldErrors[field] = message
+      }
+      if (Object.keys(fieldErrors).length) setErrors((prev) => ({ ...prev, ...fieldErrors }))
+      else setResult({ type: 'error', event: null })
     } finally {
       setSubmitting(false)
     }
@@ -146,6 +191,7 @@ export default function CreatePage() {
     <div className="px-4 sm:px-6 lg:px-8 py-16 max-w-4xl mx-auto w-full">
       <header className="mb-8">
         <h1 className="text-2xl sm:text-3xl font-semibold text-navy font-display">Crear Evento</h1>
+        <p className="text-xs text-muted mt-2"><span className="text-danger">*</span> Campo obligatorio</p>
         <p className="text-sm mt-1 text-muted">
           Completa los datos básicos para empezar a gestionar tu evento.
         </p>
@@ -159,6 +205,7 @@ export default function CreatePage() {
             placeholder="Ej. Boda de Laura y Andrés"
             value={form.name}
             onChange={(e) => setField('name', e.target.value)}
+            onBlur={() => validateOnBlur('name')}
             aria-invalid={Boolean(errors.name)}
             aria-describedby={errors.name ? 'ev-name-error' : undefined}
             className={errors.name ? inputErrorCls : inputCls}
@@ -166,12 +213,15 @@ export default function CreatePage() {
         </Field>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Tipo de evento" htmlFor="ev-type">
+          <Field label="Tipo de evento" htmlFor="ev-type" error={errors.type}>
             <select
               id="ev-type"
               value={form.type}
               onChange={(e) => setField('type', e.target.value)}
-              className={inputCls}
+              onBlur={() => validateOnBlur('type')}
+              aria-invalid={Boolean(errors.type)}
+              aria-describedby={errors.type ? 'ev-type-error' : undefined}
+              className={errors.type ? inputErrorCls : inputCls}
             >
               <option value="" disabled>
                 Selecciona un tipo…
@@ -184,14 +234,17 @@ export default function CreatePage() {
             </select>
           </Field>
 
-          <Field label="Cliente / Contratante" htmlFor="ev-client">
+          <Field label="Cliente / Contratante" htmlFor="ev-client" required error={errors.client}>
             <input
               id="ev-client"
               type="text"
               placeholder="Ej. Laura Gómez"
               value={form.client}
               onChange={(e) => setField('client', e.target.value)}
-              className={inputCls}
+              onBlur={() => validateOnBlur('client')}
+              aria-invalid={Boolean(errors.client)}
+              aria-describedby={errors.client ? 'ev-client-error' : undefined}
+              className={errors.client ? inputErrorCls : inputCls}
             />
           </Field>
         </div>
@@ -203,20 +256,24 @@ export default function CreatePage() {
               type="date"
               value={form.date}
               onChange={(e) => setField('date', e.target.value)}
+              onBlur={() => validateOnBlur('date')}
               aria-invalid={Boolean(errors.date)}
               aria-describedby={errors.date ? 'ev-date-error' : undefined}
               className={errors.date ? inputErrorCls : inputCls}
             />
           </Field>
 
-          <Field label="Lugar / Venue" htmlFor="ev-location">
+          <Field label="Lugar / Venue" htmlFor="ev-location" required error={errors.location}>
             <input
               id="ev-location"
               type="text"
               placeholder="Ej. Hacienda San Miguel"
               value={form.location}
               onChange={(e) => setField('location', e.target.value)}
-              className={inputCls}
+              onBlur={() => validateOnBlur('location')}
+              aria-invalid={Boolean(errors.location)}
+              aria-describedby={errors.location ? 'ev-location-error' : undefined}
+              className={errors.location ? inputErrorCls : inputCls}
             />
           </Field>
         </div>
@@ -257,6 +314,7 @@ export default function CreatePage() {
           drafts={drafts}
           errors={draftErrors}
           onChange={changeDraft}
+          onBlur={validateDraftOnBlur}
           onAdd={addDraft}
           onRemove={removeDraft}
         />

@@ -28,6 +28,12 @@ const MODE_META = {
 
 const emptyForm = { name: '', dueDate: '', hours: '', note: '' }
 
+const FIELD_IDS = {
+  name: 'ge-name',
+  dueDate: 'ge-date',
+  hours: 'ge-hours',
+}
+
 function TaskFormFields({ mode, event, task, onSave, onClose }) {
   const [form, setForm] = useState(() =>
     task
@@ -42,26 +48,33 @@ function TaskFormFields({ mode, event, task, onSave, onClose }) {
   const meta = MODE_META[mode]
 
   function setField(field, value) {
-    setForm((prev) => ({ ...prev, [field]: value }))
-    setErrors((prev) => ({ ...prev, [field]: undefined }))
+    const nextForm = { ...form, [field]: value }
+    setForm(nextForm)
+    const fieldError = validate(nextForm)[field]
+    setErrors((prev) => ({ ...prev, [field]: fieldError || undefined }))
+  }
+
+  function validateOnBlur(field) {
+    const fieldError = validate(form)[field]
+    if (fieldError) setErrors((prev) => ({ ...prev, [field]: fieldError }))
   }
 
   function validate(values) {
     const next = {}
-    if (!values.name.trim()) next.name = 'Este campo es obligatorio.'
+    if (!values.name.trim()) next.name = 'Escribe el nombre de la gestión.'
     if (!values.dueDate) {
-      next.dueDate = 'Este campo es obligatorio.'
+      next.dueDate = 'Elige la fecha de la gestión.'
     } else if (!/^\d{4}-\d{2}-\d{2}$/.test(values.dueDate)) {
       next.dueDate = 'Ingresa una fecha válida.'
-    } else if (values.dueDate < todayKey()) {
-      next.dueDate = 'La fecha límite no puede ser anterior a hoy.'
+    } else if ((mode === 'create' || values.dueDate !== task?.dueDate) && values.dueDate < todayKey()) {
+      next.dueDate = 'La fecha de la gestión no puede ser anterior a hoy.'
     }
     if (values.hours === '' || values.hours === null) {
-      next.hours = 'Este campo es obligatorio.'
+      next.hours = 'Escribe las horas estimadas.'
     } else {
       const num = Number(values.hours)
-      if (Number.isNaN(num)) next.hours = 'Ingresa un número válido.'
-      else if (num <= 0) next.hours = 'Las horas estimadas deben ser mayores a 0.'
+      if (Number.isNaN(num)) next.hours = 'Escribe un número válido de horas.'
+      else if (num <= 0) next.hours = 'Las horas estimadas deben ser mayores que 0.'
     }
     return next
   }
@@ -76,6 +89,8 @@ function TaskFormFields({ mode, event, task, onSave, onClose }) {
     const nextErrors = validate(form)
     if (Object.values(nextErrors).some(Boolean)) {
       setErrors(nextErrors)
+      const firstField = Object.keys(nextErrors)[0]
+      document.getElementById(FIELD_IDS[firstField])?.focus()
       return
     }
     setConflict(null)
@@ -118,6 +133,7 @@ function TaskFormFields({ mode, event, task, onSave, onClose }) {
         <h2 id="gestion-form-title" className="text-lg font-semibold text-navy">
           {meta.title}
         </h2>
+        <p className="text-xs text-muted mt-1"><span className="text-danger" aria-hidden="true">*</span> Campo obligatorio</p>
         <p className="text-sm text-muted mt-0.5">{meta.subtitle}</p>
       </div>
 
@@ -129,6 +145,8 @@ function TaskFormFields({ mode, event, task, onSave, onClose }) {
             placeholder="Ej. Reservar salón principal"
             value={form.name}
             onChange={(e) => setField('name', e.target.value)}
+            onBlur={() => validateOnBlur('name')}
+            aria-required="true"
             aria-invalid={Boolean(errors.name)}
             aria-describedby={errors.name ? 'ge-name-error' : undefined}
             className={errors.name ? inputErrorCls : inputCls}
@@ -143,6 +161,8 @@ function TaskFormFields({ mode, event, task, onSave, onClose }) {
               type="date"
               value={form.dueDate}
               onChange={(e) => setField('dueDate', e.target.value)}
+              onBlur={() => validateOnBlur('dueDate')}
+              aria-required="true"
               aria-invalid={Boolean(errors.dueDate)}
               aria-describedby={errors.dueDate ? 'ge-date-error' : undefined}
               className={errors.dueDate ? inputErrorCls : inputCls}
@@ -163,6 +183,8 @@ function TaskFormFields({ mode, event, task, onSave, onClose }) {
               placeholder="Ej. 2"
               value={form.hours}
               onChange={(e) => setField('hours', e.target.value)}
+              onBlur={() => validateOnBlur('hours')}
+              aria-required="true"
               aria-invalid={Boolean(errors.hours)}
               aria-describedby={errors.hours ? 'ge-hours-error' : undefined}
               className={errors.hours ? inputErrorCls : inputCls}
