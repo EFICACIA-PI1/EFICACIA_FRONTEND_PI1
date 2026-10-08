@@ -8,19 +8,19 @@ import Icon from '../components/Icon'
 import { useToast } from '../context/ToastContext'
 import ResultModal from '../components/ResultModal'
 import TaskFormModal from '../components/TaskFormModal'
+import TaskQuickEditDialogs from '../components/TaskQuickEditDialogs'
 import OverloadConflictModal from '../components/OverloadConflictModal'
 import EventFormModal from '../components/EventFormModal'
 import { getEventDetail, updateEvent, deleteEvent } from '../services/eventsApi'
 import { eventTypeLabel } from '../utils/events'
 import { updateTask, deleteTask } from '../services/tasksApi'
-import { DEFAULT_DAILY_HOURS_LIMIT, formatHours, getTaskStatus } from '../utils/tasks'
+import { formatHours, getTaskStatus } from '../utils/tasks'
 import { formatDate, formatDateShort } from '../utils/format'
 import usePageTitle from '../hooks/usePageTitle'
 import useRescheduleFlow from '../hooks/useRescheduleFlow'
-import { useAuth } from '../context/AuthContext'
 import { ErrorState, LoadingState } from '../components/StateViews'
 
-function TaskCard({ task, onPostpone, onReschedule, onEdit, onDelete }) {
+function TaskCard({ task, onEditHours, onReschedule, onEdit, onDelete }) {
   const status = getTaskStatus(task)
   const dotClass =
     status === 'done'
@@ -51,8 +51,8 @@ function TaskCard({ task, onPostpone, onReschedule, onEdit, onDelete }) {
         </div>
 
         <div className="flex items-center gap-1 flex-wrap justify-end shrink-0">
-          <Button size="sm" variant="neutral" onClick={() => onPostpone(task)}>
-            Posponer para mañana
+          <Button size="sm" variant="neutral" onClick={() => onEditHours(task)}>
+            Modificar horas
           </Button>
           <Button size="sm" variant="neutral" onClick={() => onReschedule(task)}>
             Reprogramar
@@ -79,9 +79,6 @@ export default function EventDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const toast = useToast()
-  const { user } = useAuth()
-  const dailyHoursLimit = user?.dailyHoursLimit ?? DEFAULT_DAILY_HOURS_LIMIT
-
   const [state, setState] = useState('loading')
   const [event, setEvent] = useState(null)
   const [tasks, setTasks] = useState([])
@@ -89,6 +86,7 @@ export default function EventDetailPage() {
   const [progress, setProgress] = useState({ total: 0, done: 0, percent: 0 })
 
   const [taskForm, setTaskForm] = useState({ open: false, mode: 'create', task: null })
+  const [quick, setQuick] = useState(null)
   const [eventFormOpen, setEventFormOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [mutating, setMutating] = useState(false)
@@ -119,19 +117,11 @@ export default function EventDetailPage() {
   }, [load])
 
   const taskSaveFlow = useRescheduleFlow({
-    onSuccess: ({ mode }) => {
+    onSuccess: () => {
       setTaskForm({ open: false, mode: 'create', task: null })
-      toast.success(
-        mode === 'postpone'
-          ? 'Gestión pospuesta al siguiente día.'
-          : mode === 'reschedule'
-            ? `Listo: la gestión quedó reprogramada y el día queda dentro de tu límite de ${dailyHoursLimit} h.`
-            : 'Gestión agregada al plan logístico.'
-      )
+      toast.success('Gestión agregada al plan logístico.')
       load()
     },
-    onFailure: () => errorModal('Error', 'Ha ocurrido un error al posponer la gestión, inténtalo de nuevo.'),
-    onInvalid: (message) => errorModal('Error', message),
   })
 
   function errorModal(title, message) {
@@ -152,7 +142,7 @@ export default function EventDetailPage() {
 
   async function handleTaskSave(data) {
     const { mode, task } = taskForm
-    if (mode === 'create' || mode === 'reschedule') {
+    if (mode === 'create') {
       await taskSaveFlow.save({ mode, event, task }, data)
       return
     }
@@ -193,16 +183,12 @@ export default function EventDetailPage() {
     }
   }
 
-  function handlePostpone(task) {
-    return taskSaveFlow.postpone({ task, event })
+  function moveConflictToAnotherDay() {
+    taskSaveFlow.moveToAnotherDay()
   }
 
-  function moveConflictToAnotherDay() {
-    const target = taskSaveFlow.target
-    if (target?.mode === 'postpone') {
-      setTaskForm({ open: true, mode: 'reschedule', task: target.task })
-    }
-    taskSaveFlow.moveToAnotherDay()
+  function openQuickEditHours(task) {
+    setQuick({ mode: 'hours', task, event })
   }
 
   function closeResult() {
@@ -340,8 +326,8 @@ export default function EventDetailPage() {
                   <li key={task.id}>
                     <TaskCard
                       task={task}
-                      onPostpone={handlePostpone}
-                      onReschedule={() => setTaskForm({ open: true, mode: 'reschedule', task: task })}
+                      onEditHours={openQuickEditHours}
+                      onReschedule={() => setQuick({ mode: 'date', task, event })}
                       onEdit={() => setTaskForm({ open: true, mode: 'edit', task: task })}
                       onDelete={() => setDeleteTarget({ type: 'task', id: task.id, name: task.name })}
                     />
@@ -377,6 +363,13 @@ export default function EventDetailPage() {
         onClearSaveError={taskSaveFlow.clearError}
         focusDateRequest={taskSaveFlow.focusDateRequest}
       />
+      {quick && (
+        <TaskQuickEditDialogs
+          request={quick}
+          onClose={() => setQuick(null)}
+          onDone={load}
+        />
+      )}
 
       <OverloadConflictModal
         open={Boolean(taskSaveFlow.conflict)}

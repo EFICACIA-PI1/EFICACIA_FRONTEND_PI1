@@ -99,3 +99,12 @@ export async function getTodayData({
 
   return { groups: visibleGroups, items, conflicts, events: eventsWithProgress, allEvents }
 }
+
+export async function getPlannedHoursForDate(dateKey, { excludeTaskId, signal } = {}) {
+  const data = await apiFetch('/hoy/', { signal })
+  const tasks = [...(data.vencidas || []), ...(data.para_hoy || []), ...(data.proximas || [])]
+
+  return tasks
+    .filter((task) => task.due_date === dateKey && String(task.id) !== String(excludeTaskId))
+    .reduce((total, task) => total + Number(task.estimated_hours), 0)
+}
