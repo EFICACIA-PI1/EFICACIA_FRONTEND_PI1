@@ -9,7 +9,7 @@ import TaskFormModal from '../components/TaskFormModal'
 import OverloadConflictModal from '../components/OverloadConflictModal'
 import { inputCls } from '../utils/forms'
 import { getTodayData } from '../services/todayApi'
-import { markTaskDone, postponeTask } from '../services/tasksApi'
+import { markTaskDone } from '../services/tasksApi'
 import { DEFAULT_DAILY_HOURS_LIMIT, formatHours, TASK_STATES } from '../utils/tasks'
 import { formatDate, formatDateShort } from '../utils/format'
 import usePageTitle from '../hooks/usePageTitle'
@@ -152,7 +152,7 @@ function TaskCard({ task, busy, onComplete, onPostpone, onReschedule }) {
           <Icon name="check" className="w-4 h-4" />
           Hecha
         </Button>
-        <Button size="sm" variant="neutral" disabled={busy} onClick={() => onPostpone(task.id)}>
+        <Button size="sm" variant="neutral" disabled={busy} onClick={() => onPostpone(task)}>
           <Icon name="postpone" className="w-4 h-4" />
           Posponer
         </Button>
@@ -270,11 +270,17 @@ export default function TodayPage() {
   }, [load])
 
   const rescheduleFlow = useRescheduleFlow({
-    onSuccess: () => {
+    onSuccess: ({ mode }) => {
       setRescheduleTarget(null)
-      toast.success(`Listo: la gestión quedó reprogramada y el día queda dentro de tu límite de ${dailyHoursLimit} h.`)
+      toast.success(
+        mode === 'postpone'
+          ? 'Gestión pospuesta al siguiente día.'
+          : `Listo: la gestión quedó reprogramada y el día queda dentro de tu límite de ${dailyHoursLimit} h.`
+      )
       load()
     },
+    onFailure: (err) => toast.error(err.message || 'No se pudo posponer la gestión.'),
+    onInvalid: (message) => toast.error(message),
   })
 
   function changeFilter(change) {
@@ -311,19 +317,20 @@ export default function TodayPage() {
     load()
   }
 
-  async function handlePostpone(id) {
-    setBusy(true)
-    try {
-      await postponeTask(id)
-    } catch (err) {
-      toast.error(err.message || 'No se pudo posponer la gestión.')
-      setBusy(false)
+  async function handlePostpone(task) {
+    const event = allEvents.find((item) => String(item.id) === String(task.eventId))
+    if (!event) {
+      toast.error('No se pudo encontrar el evento de esta gestión.')
       return
     }
-    setBusy(false)
-    setModalConflict(null)
-    toast.success('Gestión pospuesta al siguiente día.')
-    load()
+    setBusy(true)
+    try {
+      await rescheduleFlow.postpone({ task, event })
+    } catch (err) {
+      toast.error(err.message || 'No se pudo posponer la gestión.')
+    } finally {
+      setBusy(false)
+    }
   }
 
   function openReschedule(task) {
@@ -339,6 +346,14 @@ export default function TodayPage() {
   function handleReschedule(data) {
     if (!rescheduleTarget) return
     return rescheduleFlow.save({ mode: 'reschedule', ...rescheduleTarget }, data)
+  }
+
+  function moveConflictToAnotherDay() {
+    const target = rescheduleFlow.target
+    if (target?.mode === 'postpone') {
+      setRescheduleTarget({ task: target.task, event: target.event })
+    }
+    rescheduleFlow.moveToAnotherDay()
   }
 
   const urgentCount = items.filter((t) => t.priority === 'urgent' || t.priority === 'vencida').length
@@ -502,7 +517,7 @@ export default function TodayPage() {
                   <Button
                     size="sm"
                     variant="warning"
-                    onClick={() => handlePostpone(task.id)}
+                    onClick={() => handlePostpone(task)}
                     disabled={busy}
                   >
                     Posponer
@@ -537,9 +552,9 @@ export default function TodayPage() {
       <OverloadConflictModal
         open={Boolean(rescheduleFlow.conflict)}
         conflict={rescheduleFlow.conflict}
-        currentHours={rescheduleFlow.lastData?.estimated_hours ?? rescheduleFlow.lastData?.hours ?? rescheduleTarget?.task.hours}
+        currentHours={rescheduleFlow.lastData?.estimated_hours ?? rescheduleFlow.lastData?.hours ?? rescheduleTarget?.task.hours ?? rescheduleFlow.target?.task.hours}
         busy={rescheduleFlow.busy}
-        onMoveToAnotherDay={rescheduleFlow.moveToAnotherDay}
+        onMoveToAnotherDay={moveConflictToAnotherDay}
         onReduceHours={rescheduleFlow.retryWithHours}
         onCancel={() => {
           setRescheduleTarget(null)

@@ -15,3 +15,10 @@ export function todayKey() {
   const dateParts = Object.fromEntries(parts.map(({ type, value }) => [type, value]))
   return `${dateParts.year}-${dateParts.month}-${dateParts.day}`
 }
+
+export function addDaysToDateKey(dateKey, days) {
+  const [year, month, day] = dateKey.split('-').map(Number)
+  const date = new Date(year, month - 1, day)
+  date.setDate(date.getDate() + days)
+  return toDateKey(date)
+}

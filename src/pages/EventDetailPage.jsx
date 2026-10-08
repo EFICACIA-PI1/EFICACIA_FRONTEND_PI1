@@ -12,7 +12,7 @@ import OverloadConflictModal from '../components/OverloadConflictModal'
 import EventFormModal from '../components/EventFormModal'
 import { getEventDetail, updateEvent, deleteEvent } from '../services/eventsApi'
 import { eventTypeLabel } from '../utils/events'
-import { updateTask, deleteTask, postponeTask } from '../services/tasksApi'
+import { updateTask, deleteTask } from '../services/tasksApi'
 import { DEFAULT_DAILY_HOURS_LIMIT, formatHours, getTaskStatus } from '../utils/tasks'
 import { formatDate, formatDateShort } from '../utils/format'
 import usePageTitle from '../hooks/usePageTitle'
@@ -122,12 +122,16 @@ export default function EventDetailPage() {
     onSuccess: ({ mode }) => {
       setTaskForm({ open: false, mode: 'create', task: null })
       toast.success(
-        mode === 'reschedule'
-          ? `Listo: la gestión quedó reprogramada y el día queda dentro de tu límite de ${dailyHoursLimit} h.`
-          : 'Gestión agregada al plan logístico.'
+        mode === 'postpone'
+          ? 'Gestión pospuesta al siguiente día.'
+          : mode === 'reschedule'
+            ? `Listo: la gestión quedó reprogramada y el día queda dentro de tu límite de ${dailyHoursLimit} h.`
+            : 'Gestión agregada al plan logístico.'
       )
       load()
     },
+    onFailure: () => errorModal('Error', 'Ha ocurrido un error al posponer la gestión, inténtalo de nuevo.'),
+    onInvalid: (message) => errorModal('Error', message),
   })
 
   function errorModal(title, message) {
@@ -189,14 +193,16 @@ export default function EventDetailPage() {
     }
   }
 
-  async function handlePostpone(task) {
-    try {
-      await postponeTask(task.id)
-      toast.success('Gestión pospuesta al siguiente día.')
-      load()
-    } catch {
-      errorModal('Error', 'Ha ocurrido un error al posponer la gestión, inténtalo de nuevo.')
+  function handlePostpone(task) {
+    return taskSaveFlow.postpone({ task, event })
+  }
+
+  function moveConflictToAnotherDay() {
+    const target = taskSaveFlow.target
+    if (target?.mode === 'postpone') {
+      setTaskForm({ open: true, mode: 'reschedule', task: target.task })
     }
+    taskSaveFlow.moveToAnotherDay()
   }
 
   function closeResult() {
@@ -375,9 +381,9 @@ export default function EventDetailPage() {
       <OverloadConflictModal
         open={Boolean(taskSaveFlow.conflict)}
         conflict={taskSaveFlow.conflict}
-        currentHours={taskSaveFlow.lastData?.estimated_hours ?? taskSaveFlow.lastData?.hours ?? taskForm.task?.hours}
+        currentHours={taskSaveFlow.lastData?.estimated_hours ?? taskSaveFlow.lastData?.hours ?? taskForm.task?.hours ?? taskSaveFlow.target?.task.hours}
         busy={taskSaveFlow.busy}
-        onMoveToAnotherDay={taskSaveFlow.moveToAnotherDay}
+        onMoveToAnotherDay={moveConflictToAnotherDay}
         onReduceHours={taskSaveFlow.retryWithHours}
         onCancel={() => {
           setTaskForm({ open: false, mode: 'create', task: null })
