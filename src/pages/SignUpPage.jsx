@@ -116,10 +116,12 @@ export default function SignUpPage() {
       <FormAlert message={serverError} />
       <form onSubmit={handleSubmit} noValidate className="space-y-4">
         {textField('fullName', 'Nombre completo', { autoComplete: 'name', autoFocus: true, placeholder: 'Ej. María Pérez' })}
-        {textField('username', 'Usuario', { autoComplete: 'username', placeholder: 'Ej. maria.perez' })}
-        {textField('email', 'Correo electrónico', { type: 'email', autoComplete: 'email', inputMode: 'email', placeholder: 'correo@ejemplo.com' })}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 items-start gap-4">
+          {textField('username', 'Usuario', { autoComplete: 'username', placeholder: 'Ej. maria.perez' })}
           {textField('phone', 'Teléfono', { type: 'tel', autoComplete: 'tel', placeholder: '300 123 4567' })}
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 items-start gap-4">
+          {textField('email', 'Correo electrónico', { type: 'email', autoComplete: 'email', inputMode: 'email', placeholder: 'correo@ejemplo.com' })}
           {textField('address', 'Dirección', { optional: true, autoComplete: 'street-address', placeholder: 'Calle 10 # 5-20' })}
         </div>
         <Field label="Contraseña" htmlFor="password" required hint="Mínimo 8 caracteres." error={errors.password}>
