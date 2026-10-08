@@ -5,12 +5,15 @@ import { useToast } from '../context/ToastContext'
 import { useAuth } from '../context/AuthContext'
 import Button from '../components/Button'
 import Modal from '../components/Modal'
+import TaskFormModal from '../components/TaskFormModal'
+import OverloadConflictModal from '../components/OverloadConflictModal'
 import { inputCls } from '../utils/forms'
 import { getTodayData } from '../services/todayApi'
 import { markTaskDone, postponeTask } from '../services/tasksApi'
-import { formatHours, TASK_STATES } from '../utils/tasks'
+import { DEFAULT_DAILY_HOURS_LIMIT, formatHours, TASK_STATES } from '../utils/tasks'
 import { formatDate, formatDateShort } from '../utils/format'
 import usePageTitle from '../hooks/usePageTitle'
+import useRescheduleFlow from '../hooks/useRescheduleFlow'
 import { EmptyState, ErrorState, LoadingState } from '../components/StateViews'
 
 const DANGER = 'bg-danger-bg text-danger border-danger-border'
@@ -112,7 +115,7 @@ function TodayEmptyState({ onViewPlan, filtered, onClear }) {
   )
 }
 
-function TaskCard({ task, busy, onComplete, onPostpone }) {
+function TaskCard({ task, busy, onComplete, onPostpone, onReschedule }) {
   const p = PRIORITY_CONFIG[task.priority] || PRIORITY_CONFIG.upcoming
 
   return (
@@ -153,6 +156,15 @@ function TaskCard({ task, busy, onComplete, onPostpone }) {
           <Icon name="postpone" className="w-4 h-4" />
           Posponer
         </Button>
+        <Button
+          size="sm"
+          variant="neutral"
+          disabled={busy}
+          aria-label={`Reprogramar "${task.name}"`}
+          onClick={() => onReschedule(task)}
+        >
+          Reprogramar
+        </Button>
         </div>
       </div>
     </article>
@@ -181,7 +193,7 @@ const TASK_GROUPS = [
   },
 ]
 
-function TaskGroup({ id, title, empty, countCls, tasks, busy, onComplete, onPostpone }) {
+function TaskGroup({ id, title, empty, countCls, tasks, busy, onComplete, onPostpone, onReschedule }) {
   return (
     <section aria-labelledby={`group-${id}`}>
       <div className="flex items-center gap-2 mb-3">
@@ -201,7 +213,13 @@ function TaskGroup({ id, title, empty, countCls, tasks, busy, onComplete, onPost
         <ul className="space-y-3" role="list">
           {tasks.map((task) => (
             <li key={task.id}>
-              <TaskCard task={task} busy={busy} onComplete={onComplete} onPostpone={onPostpone} />
+              <TaskCard
+                task={task}
+                busy={busy}
+                onComplete={onComplete}
+                onPostpone={onPostpone}
+                onReschedule={onReschedule}
+              />
             </li>
           ))}
         </ul>
@@ -216,6 +234,7 @@ export default function TodayPage() {
   const toast = useToast()
   const { user } = useAuth()
   const displayName = user?.fullName?.trim().split(/\s+/)[0] || user?.username
+  const dailyHoursLimit = user?.dailyHoursLimit ?? DEFAULT_DAILY_HOURS_LIMIT
   const [searchParams, setSearchParams] = useSearchParams()
   const eventId = searchParams.get('event') || ''
   const taskState = searchParams.get('state') || ''
@@ -226,11 +245,12 @@ export default function TodayPage() {
   const [groups, setGroups] = useState({ vencidas: [], paraHoy: [], proximas: [] })
   const [conflicts, setConflicts] = useState([])
   const [modalConflict, setModalConflict] = useState(null)
+  const [rescheduleTarget, setRescheduleTarget] = useState(null)
   const [busy, setBusy] = useState(false)
 
   const load = useCallback(async (signal) => {
     try {
-      const data = await getTodayData({ eventId, state: taskState, signal })
+      const data = await getTodayData({ eventId, state: taskState, signal, dailyHoursLimit })
       setAllEvents(data.allEvents)
       setItems(data.items)
       setGroups(data.groups)
@@ -241,13 +261,21 @@ export default function TodayPage() {
       setLoadError(err)
       setState('error')
     }
-  }, [eventId, taskState])
+  }, [dailyHoursLimit, eventId, taskState])
 
   useEffect(() => {
     const controller = new AbortController()
     load(controller.signal)
     return () => controller.abort()
   }, [load])
+
+  const rescheduleFlow = useRescheduleFlow({
+    onSuccess: () => {
+      setRescheduleTarget(null)
+      toast.success(`Listo: la gestión quedó reprogramada y el día queda dentro de tu límite de ${dailyHoursLimit} h.`)
+      load()
+    },
+  })
 
   function changeFilter(change) {
     const next = new URLSearchParams(searchParams)
@@ -296,6 +324,21 @@ export default function TodayPage() {
     setModalConflict(null)
     toast.success('Gestión pospuesta al siguiente día.')
     load()
+  }
+
+  function openReschedule(task) {
+    const event = allEvents.find((item) => String(item.id) === String(task.eventId))
+    if (!event) {
+      toast.error('No se pudo encontrar el evento de esta gestión.')
+      return
+    }
+    setRescheduleTarget({ task, event })
+    rescheduleFlow.clearError()
+  }
+
+  function handleReschedule(data) {
+    if (!rescheduleTarget) return
+    return rescheduleFlow.save({ mode: 'reschedule', ...rescheduleTarget }, data)
   }
 
   const urgentCount = items.filter((t) => t.priority === 'urgent' || t.priority === 'vencida').length
@@ -350,7 +393,7 @@ export default function TodayPage() {
             <div className="space-y-3">
               {conflicts.map((conflict) => (
                 <div
-                  key={conflict.eventId}
+                  key={conflict.eventId ?? 'daily-overload'}
                   role="alert"
                   className="rounded-xl p-4 border border-warning-border flex flex-col sm:flex-row sm:items-center gap-4"
                   tabIndex={0}
@@ -399,6 +442,7 @@ export default function TodayPage() {
                 busy={busy}
                 onComplete={handleComplete}
                 onPostpone={handlePostpone}
+                onReschedule={openReschedule}
               />
             ))}
           </div>
@@ -474,6 +518,34 @@ export default function TodayPage() {
           </Button>
         </div>
       </Modal>
+
+      <TaskFormModal
+        open={Boolean(rescheduleTarget)}
+        mode="reschedule"
+        event={rescheduleTarget?.event}
+        eventDate={rescheduleTarget?.event?.date}
+        task={rescheduleTarget?.task}
+        onSave={handleReschedule}
+        onClose={() => {
+          setRescheduleTarget(null)
+          rescheduleFlow.cancel()
+        }}
+        saveError={rescheduleFlow.error}
+        onClearSaveError={rescheduleFlow.clearError}
+        focusDateRequest={rescheduleFlow.focusDateRequest}
+      />
+      <OverloadConflictModal
+        open={Boolean(rescheduleFlow.conflict)}
+        conflict={rescheduleFlow.conflict}
+        currentHours={rescheduleFlow.lastData?.estimated_hours ?? rescheduleFlow.lastData?.hours ?? rescheduleTarget?.task.hours}
+        busy={rescheduleFlow.busy}
+        onMoveToAnotherDay={rescheduleFlow.moveToAnotherDay}
+        onReduceHours={rescheduleFlow.retryWithHours}
+        onCancel={() => {
+          setRescheduleTarget(null)
+          rescheduleFlow.cancel()
+        }}
+      />
     </div>
   )
 }

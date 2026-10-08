@@ -16,7 +16,10 @@ function initialsOf(user) {
 }
 
 // Nombres de campo del backend -> nombres del formulario
-const SERVER_FIELDS = { full_name: 'fullName' }
+const SERVER_FIELDS = {
+  full_name: 'fullName',
+  daily_hours_limit: 'dailyHoursLimit',
+}
 
 function ProfileForm({ user, onCancel, onSaved }) {
   const { updateProfile } = useAuth()
@@ -26,6 +29,7 @@ function ProfileForm({ user, onCancel, onSaved }) {
     phone: user.phone,
     address: user.address,
     email: user.email,
+    dailyHoursLimit: String(user.dailyHoursLimit ?? 6),
   })
   const [errors, setErrors] = useState({})
   const [loading, setLoading] = useState(false)
@@ -41,6 +45,12 @@ function ProfileForm({ user, onCancel, onSaved }) {
       fullName: validateFullName(form.fullName),
       email: validateEmail(form.email),
       phone: validatePhone(form.phone),
+      dailyHoursLimit:
+        Number.isInteger(Number(form.dailyHoursLimit)) &&
+        Number(form.dailyHoursLimit) >= 1 &&
+        Number(form.dailyHoursLimit) <= 16
+          ? ''
+          : 'El límite debe ser un número entero entre 1 y 16 horas.',
     })
     setErrors(invalid)
     const first = Object.keys(invalid)[0]
@@ -66,14 +76,15 @@ function ProfileForm({ user, onCancel, onSaved }) {
     }
   }
 
-  function field(id, label, { required = true, ...props } = {}) {
+  function field(id, label, { required = true, hint, ...props } = {}) {
     return (
-      <Field label={label} htmlFor={`pf-${id}`} required={required} optional={!required} error={errors[id]}>
+      <Field label={label} htmlFor={`pf-${id}`} required={required} optional={!required} hint={hint} error={errors[id]}>
         <input
           id={`pf-${id}`}
           value={form[id]}
           onChange={(e) => update(id, e.target.value)}
           aria-invalid={Boolean(errors[id])}
+          aria-required={required}
           aria-describedby={errors[id] ? `pf-${id}-error` : undefined}
           className={errors[id] ? inputErrorCls : inputCls}
           {...props}
@@ -90,6 +101,13 @@ function ProfileForm({ user, onCancel, onSaved }) {
         {field('phone', 'Teléfono', { type: 'tel', autoComplete: 'tel' })}
         {field('address', 'Dirección', { required: false, autoComplete: 'street-address' })}
       </div>
+      {field('dailyHoursLimit', 'Límite diario de horas', {
+        type: 'number',
+        min: 1,
+        max: 16,
+        step: 1,
+        hint: 'Horas máximas que quieres planificar por día.',
+      })}
       <p className="text-xs text-muted">El usuario no se puede modificar.</p>
       <div className="flex flex-col sm:flex-row gap-3 pt-1">
         <Button type="submit" loading={loading}>
@@ -114,6 +132,7 @@ export default function ProfilePage() {
     { label: 'Usuario', value: user?.username },
     { label: 'Correo electrónico', value: user?.email },
     { label: 'Teléfono', value: user?.phone },
+    { label: 'Límite diario de horas', value: `${user?.dailyHoursLimit ?? 6} h` },
     { label: 'Dirección', value: user?.address },
   ]
 

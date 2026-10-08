@@ -1,12 +1,14 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Icon from './Icon'
 import Modal from './Modal'
 import Button from './Button'
 import Field from './Field'
+import { useAuth } from '../context/AuthContext'
 import { inputCls, inputErrorCls } from '../utils/forms'
 import { getConflictForDate } from '../services/tasksApi'
 import { todayKey } from '../utils/dates'
-import { formatDateShort } from '../utils/format'
+import { formatDateShort, formatDateToast } from '../utils/format'
+import { DEFAULT_DAILY_HOURS_LIMIT } from '../utils/tasks'
 
 const MODE_META = {
   create: {
@@ -34,7 +36,20 @@ const FIELD_IDS = {
   hours: 'ge-hours',
 }
 
-function TaskFormFields({ mode, event, task, onSave, onClose }) {
+function TaskFormFields({
+  mode,
+  event,
+  eventDate,
+  task,
+  onSave,
+  onClose,
+  saveError: externalSaveError,
+  onClearSaveError,
+  focusDateRequest,
+}) {
+  const effectiveEventDate = eventDate || event?.date || ''
+  const { user } = useAuth()
+  const dailyHoursLimit = user?.dailyHoursLimit ?? DEFAULT_DAILY_HOURS_LIMIT
   const [form, setForm] = useState(() =>
     task
       ? { name: task.name, dueDate: task.dueDate, hours: String(task.hours), note: task.note || '' }
@@ -42,16 +57,25 @@ function TaskFormFields({ mode, event, task, onSave, onClose }) {
   )
   const [errors, setErrors] = useState({})
   const [conflict, setConflict] = useState(null)
+  const [saveError, setSaveError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const hoursRef = useRef(null)
   const dateRef = useRef(null)
   const meta = MODE_META[mode]
+
+  useEffect(() => {
+    if (focusDateRequest <= 0) return undefined
+    const frame = window.requestAnimationFrame(() => dateRef.current?.focus())
+    return () => window.cancelAnimationFrame(frame)
+  }, [focusDateRequest])
 
   function setField(field, value) {
     const nextForm = { ...form, [field]: value }
     setForm(nextForm)
     const fieldError = validate(nextForm)[field]
     setErrors((prev) => ({ ...prev, [field]: fieldError || undefined }))
+    setSaveError('')
+    onClearSaveError?.()
   }
 
   function validateOnBlur(field) {
@@ -62,12 +86,17 @@ function TaskFormFields({ mode, event, task, onSave, onClose }) {
   function validate(values) {
     const next = {}
     if (!values.name.trim()) next.name = 'Escribe el nombre de la gestión.'
-    if (!values.dueDate) {
+    const dateChanged = mode === 'create' || values.dueDate !== task?.dueDate
+    if (mode === 'create' && effectiveEventDate && effectiveEventDate < todayKey()) {
+      next.dueDate = `Este evento ya pasó (${formatDateToast(effectiveEventDate)}); no se pueden agendar gestiones nuevas.`
+    } else if (!values.dueDate) {
       next.dueDate = 'Elige la fecha de la gestión.'
     } else if (!/^\d{4}-\d{2}-\d{2}$/.test(values.dueDate)) {
       next.dueDate = 'Ingresa una fecha válida.'
-    } else if ((mode === 'create' || values.dueDate !== task?.dueDate) && values.dueDate < todayKey()) {
+    } else if (dateChanged && values.dueDate < todayKey()) {
       next.dueDate = 'La fecha de la gestión no puede ser anterior a hoy.'
+    } else if (dateChanged && effectiveEventDate && values.dueDate > effectiveEventDate) {
+      next.dueDate = `La fecha límite no puede ser posterior a la fecha del evento (${formatDateToast(effectiveEventDate)}).`
     }
     if (values.hours === '' || values.hours === null) {
       next.hours = 'Escribe las horas estimadas.'
@@ -94,14 +123,18 @@ function TaskFormFields({ mode, event, task, onSave, onClose }) {
       return
     }
     setConflict(null)
-    const found = await getConflictForDate(event.id, form.dueDate, {
-      excludeId: mode === 'create' ? null : task?.id,
-      addHours: Number(form.hours),
-    })
-    if (found) {
-      setConflict(found)
-      return
+    if (mode !== 'reschedule') {
+      const found = await getConflictForDate(event.id, form.dueDate, {
+        excludeId: mode === 'create' ? null : task?.id,
+        addHours: Number(form.hours),
+        dailyHoursLimit,
+      })
+      if (found) {
+        setConflict(found)
+        return
+      }
     }
+    setSaveError('')
     setSubmitting(true)
     try {
       await onSave({
@@ -113,7 +146,9 @@ function TaskFormFields({ mode, event, task, onSave, onClose }) {
         due_date: form.dueDate,
         estimated_hours: Number(form.hours),
       })
-    } catch {
+    } catch (err) {
+      setSaveError(err.message || 'No se pudo guardar la gestión. Inténtalo de nuevo.')
+    } finally {
       setSubmitting(false)
     }
   }
@@ -234,6 +269,11 @@ function TaskFormFields({ mode, event, task, onSave, onClose }) {
             </div>
           </div>
         )}
+        {(externalSaveError || saveError) && (
+          <div role="alert" className="rounded-xl p-3 border border-danger-border bg-danger-bg text-sm text-danger">
+            {externalSaveError || saveError}
+          </div>
+        )}
       </div>
 
       <div className="px-6 py-4 border-t border-edge flex justify-end gap-3">
@@ -248,7 +288,18 @@ function TaskFormFields({ mode, event, task, onSave, onClose }) {
   )
 }
 
-export default function TaskFormModal({ open, mode, event, task, onSave, onClose }) {
+export default function TaskFormModal({
+  open,
+  mode,
+  event,
+  eventDate,
+  task,
+  onSave,
+  onClose,
+  saveError,
+  onClearSaveError,
+  focusDateRequest = 0,
+}) {
   return (
     <Modal open={open} onClose={onClose} labelledBy="gestion-form-title">
       {open && (
@@ -256,9 +307,13 @@ export default function TaskFormModal({ open, mode, event, task, onSave, onClose
           key={`${mode}-${task?.id || 'new'}`}
           mode={mode}
           event={event}
+          eventDate={eventDate}
           task={task}
           onSave={onSave}
           onClose={onClose}
+          saveError={saveError}
+          onClearSaveError={onClearSaveError}
+          focusDateRequest={focusDateRequest}
         />
       )}
     </Modal>

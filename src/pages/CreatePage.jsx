@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Button from '../components/Button'
 import Field from '../components/Field'
+import OverloadConflictModal from '../components/OverloadConflictModal'
+import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import ResultModal from '../components/ResultModal'
 import { inputCls, inputErrorCls } from '../utils/forms'
@@ -9,7 +11,9 @@ import TaskDraftList from '../components/TaskDraftList'
 import { createTaskDraft, validateTaskDrafts } from '../utils/taskDrafts'
 import { createEvent } from '../services/eventsApi'
 import { createTask } from '../services/tasksApi'
+import { isOverloadConflict } from '../services/api'
 import { todayKey } from '../utils/dates'
+import { DEFAULT_DAILY_HOURS_LIMIT } from '../utils/tasks'
 import usePageTitle from '../hooks/usePageTitle'
 
 const EVENT_TYPES = [
@@ -27,7 +31,6 @@ const emptyForm = {
   client: '',
   date: '',
   location: '',
-  dailyLimitHours: '6',
   notes: '',
 }
 
@@ -51,19 +54,39 @@ export default function CreatePage() {
   usePageTitle('Crear evento')
   const navigate = useNavigate()
   const toast = useToast()
+  const { user } = useAuth()
+  const dailyHoursLimit = user?.dailyHoursLimit ?? DEFAULT_DAILY_HOURS_LIMIT
   const [form, setForm] = useState(emptyForm)
   const [errors, setErrors] = useState({})
   const [drafts, setDrafts] = useState([])
   const [draftErrors, setDraftErrors] = useState({})
   const [submitting, setSubmitting] = useState(false)
   const [result, setResult] = useState(null)
+  const [createdEvent, setCreatedEvent] = useState(null)
+  const [draftConflict, setDraftConflict] = useState(null)
+  const [draftConflictQueue, setDraftConflictQueue] = useState([])
+  const [draftConflictOpen, setDraftConflictOpen] = useState(false)
+  const [failedDraftCount, setFailedDraftCount] = useState(0)
+  const [savedDraftKeys, setSavedDraftKeys] = useState([])
+  const [retryingDraft, setRetryingDraft] = useState(false)
+  const [focusDraftDateKey, setFocusDraftDateKey] = useState(null)
+  const [focusDraftDateRequest, setFocusDraftDateRequest] = useState(0)
 
   function setField(field, value) {
     const nextForm = { ...form, [field]: value }
     setForm(nextForm)
-    if (field === 'dailyLimitHours') {
-      setErrors((prev) => ({ ...prev, [field]: undefined }))
-      return
+    if (field === 'date') {
+      const validation = validateTaskDrafts(drafts, dailyHoursLimit, value)
+      setDraftErrors((previous) => {
+        const next = { ...previous }
+        for (const draft of drafts) {
+          next[draft.key] = {
+            ...previous[draft.key],
+            dueDate: validation[draft.key]?.dueDate,
+          }
+        }
+        return next
+      })
     }
     const fieldError = validate(nextForm)[field]
     setErrors((prev) => ({ ...prev, [field]: fieldError || undefined }))
@@ -89,11 +112,85 @@ export default function CreatePage() {
   }
 
   function validateDraftOnBlur(key, field) {
-    const limitHours = form.dailyLimitHours === '' ? 6 : Number(form.dailyLimitHours)
-    const fieldError = validateTaskDrafts(drafts, limitHours)[key]?.[field]
+    const fieldError = validateTaskDrafts(drafts, dailyHoursLimit, form.date)[key]?.[field]
     if (fieldError) {
       setDraftErrors((prev) => ({ ...prev, [key]: { ...prev[key], [field]: fieldError } }))
     }
+  }
+
+  function finishDraftCreation(event, failedCount) {
+    if (failedCount > 0) {
+      toast.error(
+        `El evento se creó, pero ${failedCount} gestión${failedCount !== 1 ? 'es' : ''} no se pudo guardar. Agrégala${failedCount !== 1 ? 's' : ''} desde el detalle.`
+      )
+    } else if (drafts.length > 0) {
+      toast.success(`Evento creado con ${drafts.length} gestión${drafts.length !== 1 ? 'es' : ''}.`)
+    } else {
+      toast.success('Evento creado. Ahora agrega sus gestiones.')
+    }
+    navigate(`/evento/${event.id}`)
+  }
+
+  function advanceDraftConflict(failedCount) {
+    const [next, ...remaining] = draftConflictQueue
+    setDraftConflictQueue(remaining)
+    if (next) {
+      setDraftConflict({ ...next, event: createdEvent, hours: Number(next.draft.hours) })
+      setDraftConflictOpen(true)
+    } else {
+      setDraftConflict(null)
+      setDraftConflictOpen(false)
+      finishDraftCreation(createdEvent, failedCount)
+    }
+  }
+
+  async function retryDraft(draftOverride = null) {
+    if (!draftConflict || retryingDraft) return
+    const draft = draftOverride || drafts.find((item) => item.key === draftConflict.draft.key)
+    if (!draft) return
+    setRetryingDraft(true)
+    try {
+      await createTask(createdEvent.id, {
+        name: draft.name,
+        dueDate: draft.dueDate,
+        hours: Number(draft.hours),
+        note: draft.note,
+      })
+      setSavedDraftKeys((keys) => [...keys, draft.key])
+      advanceDraftConflict(failedDraftCount)
+    } catch (err) {
+      if (isOverloadConflict(err)) {
+        setDraftConflict((current) => ({
+          ...current,
+          draft,
+          hours: Number(draft.hours),
+          conflict: err.data,
+        }))
+        setDraftConflictOpen(true)
+      } else {
+        const nextFailedCount = failedDraftCount + 1
+        setFailedDraftCount(nextFailedCount)
+        advanceDraftConflict(nextFailedCount)
+      }
+    } finally {
+      setRetryingDraft(false)
+    }
+  }
+
+  function reduceDraftHours(hours) {
+    const draft = drafts.find((item) => item.key === draftConflict?.draft.key)
+    if (!draft) return
+    const updatedDraft = { ...draft, hours: String(hours) }
+    setDrafts((prev) => prev.map((item) => (item.key === draft.key ? updatedDraft : item)))
+    return retryDraft(updatedDraft)
+  }
+
+  function cancelDraftConflict() {
+    const failedCount = failedDraftCount + 1 + draftConflictQueue.length
+    setDraftConflict(null)
+    setDraftConflictQueue([])
+    setDraftConflictOpen(false)
+    finishDraftCreation(createdEvent, failedCount)
   }
 
   function validate(values) {
@@ -108,20 +205,14 @@ export default function CreatePage() {
       next.date = 'La fecha no puede ser anterior a hoy.'
     }
     if (!values.location.trim()) next.location = 'Escribe el lugar del evento.'
-    if (values.dailyLimitHours !== '') {
-      const num = Number(values.dailyLimitHours)
-      if (Number.isNaN(num)) next.dailyLimitHours = 'Ingresa un número válido.'
-      else if (num < 1) next.dailyLimitHours = 'El límite diario debe ser al menos 1 hora.'
-    }
     return next
   }
 
   async function handleSubmit(e) {
     e.preventDefault()
-    if (submitting) return
+    if (submitting || createdEvent) return
     const nextErrors = validate(form)
-    const limitHours = form.dailyLimitHours === '' ? 6 : Number(form.dailyLimitHours)
-    const nextDraftErrors = validateTaskDrafts(drafts, limitHours)
+    const nextDraftErrors = validateTaskDrafts(drafts, dailyHoursLimit, form.date)
     setErrors(nextErrors)
     setDraftErrors(nextDraftErrors)
     if (Object.values(nextErrors).some(Boolean) || Object.keys(nextDraftErrors).length) {
@@ -144,10 +235,9 @@ export default function CreatePage() {
         date: form.date,
         location: form.location.trim(),
         notes: form.notes.trim(),
-        dailyLimitHours: limitHours,
       })
 
-      // El evento ya existe: si alguna gestión falla no se pierde el evento, se avisa.
+      setCreatedEvent(event)
       const results = await Promise.allSettled(
         drafts.map((draft) =>
           createTask(event.id, {
@@ -158,18 +248,26 @@ export default function CreatePage() {
           })
         )
       )
-      const failed = results.filter((r) => r.status === 'rejected').length
-      if (failed > 0) {
-        toast.error(
-          `El evento se creó, pero ${failed} gestión${failed !== 1 ? 'es' : ''} no se pudo guardar. Agrégala${failed !== 1 ? 's' : ''} desde el detalle.`
-        )
-      } else if (drafts.length > 0) {
-        toast.success(`Evento creado con ${drafts.length} gestión${drafts.length !== 1 ? 'es' : ''}.`)
-      } else {
-        toast.success('Evento creado. Ahora agrega sus gestiones.')
+      const overloads = results.flatMap((resultItem, index) =>
+        resultItem.status === 'rejected' && isOverloadConflict(resultItem.reason)
+          ? [{ draft: drafts[index], index, conflict: resultItem.reason.data }]
+          : []
+      )
+      const failed = results.filter(
+        (resultItem) => resultItem.status === 'rejected' && !isOverloadConflict(resultItem.reason)
+      ).length
+      setSavedDraftKeys(results.flatMap((resultItem, index) =>
+        resultItem.status === 'fulfilled' ? [drafts[index].key] : []
+      ))
+      setFailedDraftCount(failed)
+      if (overloads.length > 0) {
+        const [first, ...remaining] = overloads
+        setDraftConflict({ ...first, event, hours: Number(first.draft.hours) })
+        setDraftConflictQueue(remaining)
+        setDraftConflictOpen(true)
+        return
       }
-      navigate(`/evento/${event.id}`)
-      return
+      finishDraftCreation(event, failed)
     } catch (err) {
       const fieldErrors = {}
       for (const [serverField, message] of Object.entries(err.fields || {})) {
@@ -278,27 +376,6 @@ export default function CreatePage() {
           </Field>
         </div>
 
-        <Field
-          label="Límite diario de gestión"
-          htmlFor="ev-limit"
-          optional
-          hint="Horas máximas de gestión que puedes dedicar al día para este evento. Usado para detectar conflictos de sobrecarga."
-          error={errors.dailyLimitHours}
-        >
-          <input
-            id="ev-limit"
-            type="number"
-            min="1"
-            step="0.5"
-            placeholder="6"
-            value={form.dailyLimitHours}
-            onChange={(e) => setField('dailyLimitHours', e.target.value)}
-            aria-invalid={Boolean(errors.dailyLimitHours)}
-            aria-describedby={errors.dailyLimitHours ? 'ev-limit-error' : undefined}
-            className={`${errors.dailyLimitHours ? inputErrorCls : inputCls} max-w-[180px]`}
-          />
-        </Field>
-
         <Field label="Notas iniciales" htmlFor="ev-notes" optional>
           <textarea
             id="ev-notes"
@@ -315,12 +392,19 @@ export default function CreatePage() {
           errors={draftErrors}
           onChange={changeDraft}
           onBlur={validateDraftOnBlur}
+          retryDraftKey={draftConflict && !draftConflictOpen ? draftConflict.draft.key : null}
+          savedDraftKeys={savedDraftKeys}
+          focusDateKey={focusDraftDateKey}
+          focusDateRequest={focusDraftDateRequest}
+          onRetryDraft={(key) => {
+            if (key === draftConflict?.draft.key) retryDraft()
+          }}
           onAdd={addDraft}
           onRemove={removeDraft}
         />
 
         <div className="pt-2 flex flex-col sm:flex-row gap-3">
-          <Button type="submit" loading={submitting} className="sm:w-auto">
+          <Button type="submit" loading={submitting} disabled={Boolean(createdEvent)} className="sm:w-auto">
             {drafts.length > 0
               ? `Crear evento y ${drafts.length} gestión${drafts.length !== 1 ? 'es' : ''}`
               : 'Crear evento'}
@@ -338,6 +422,19 @@ export default function CreatePage() {
         message="Ha ocurrido un error al crear el evento, inténtalo de nuevo."
         actionLabel="Cerrar"
         onClose={closeResult}
+      />
+      <OverloadConflictModal
+        open={Boolean(draftConflict && draftConflictOpen)}
+        conflict={draftConflict?.conflict}
+        currentHours={draftConflict?.hours}
+        busy={retryingDraft}
+        onMoveToAnotherDay={() => {
+          setDraftConflictOpen(false)
+          setFocusDraftDateKey(draftConflict?.draft.key)
+          setFocusDraftDateRequest((request) => request + 1)
+        }}
+        onReduceHours={reduceDraftHours}
+        onCancel={cancelDraftConflict}
       />
     </div>
   )

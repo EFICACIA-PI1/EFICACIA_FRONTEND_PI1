@@ -1,4 +1,5 @@
 import { apiFetch } from './api'
+import { DEFAULT_DAILY_HOURS_LIMIT } from '../utils/tasks'
 
 const json = (body) => JSON.stringify(body)
 
@@ -40,7 +41,7 @@ export async function getMe({ signal } = {}) {
 }
 
 /** PATCH /auth/me/ — solo full_name, phone, address y email son editables. */
-export async function updateMe({ fullName, phone, address, email }) {
+export async function updateMe({ fullName, phone, address, email, dailyHoursLimit }) {
   const data = await apiFetch('/auth/me/', {
     method: 'PATCH',
     body: json({
@@ -48,6 +49,7 @@ export async function updateMe({ fullName, phone, address, email }) {
       phone: phone.trim(),
       address: address.trim(),
       email: email.trim(),
+      daily_hours_limit: Number(dailyHoursLimit),
     }),
   })
   return normalizeUser(data)
@@ -94,5 +96,6 @@ export function normalizeUser(raw = {}) {
     fullName: raw.full_name || '',
     phone: raw.phone || '',
     address: raw.address || '',
+    dailyHoursLimit: Number(raw.daily_hours_limit ?? DEFAULT_DAILY_HOURS_LIMIT),
   }
 }
