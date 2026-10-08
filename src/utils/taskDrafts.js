@@ -1,4 +1,5 @@
 import { todayKey } from './dates'
+import { formatDateToast } from './format'
 
 let nextKey = 0
 
@@ -11,23 +12,28 @@ export function createTaskDraft() {
  * Además de las reglas por campo, comprueba que las horas de un mismo día
  * no superen el límite diario (misma regla que usa el detalle del evento).
  */
-export function validateTaskDrafts(drafts, limitHours) {
+export function validateTaskDrafts(drafts, limitHours, eventDate = '') {
   const errors = {}
   const hoursByDate = {}
   const today = todayKey()
 
   for (const draft of drafts) {
     const row = {}
-    if (!draft.name.trim()) row.name = 'Este campo es obligatorio.'
+    if (!draft.name.trim()) row.name = 'Escribe el nombre de la gestión.'
 
-    if (!draft.dueDate) row.dueDate = 'Este campo es obligatorio.'
+    if (eventDate && eventDate < today) {
+      row.dueDate = `Este evento ya pasó (${formatDateToast(eventDate)}); no se pueden agendar gestiones nuevas.`
+    } else if (!draft.dueDate) row.dueDate = 'Elige la fecha de la gestión.'
     else if (!/^\d{4}-\d{2}-\d{2}$/.test(draft.dueDate)) row.dueDate = 'Ingresa una fecha válida.'
-    else if (draft.dueDate < today) row.dueDate = 'La fecha límite no puede ser anterior a hoy.'
+    else if (draft.dueDate < today) row.dueDate = 'La fecha de la gestión no puede ser anterior a hoy.'
+    else if (eventDate && draft.dueDate > eventDate) {
+      row.dueDate = `La fecha límite no puede ser posterior a la fecha del evento (${formatDateToast(eventDate)}).`
+    }
 
     const hours = Number(draft.hours)
-    if (draft.hours === '') row.hours = 'Este campo es obligatorio.'
-    else if (Number.isNaN(hours)) row.hours = 'Ingresa un número válido.'
-    else if (hours <= 0) row.hours = 'Deben ser mayores a 0.'
+    if (draft.hours === '') row.hours = 'Escribe las horas estimadas.'
+    else if (Number.isNaN(hours)) row.hours = 'Escribe un número válido de horas.'
+    else if (hours <= 0) row.hours = 'Las horas estimadas deben ser mayores que 0.'
 
     if (!row.dueDate && !row.hours) {
       hoursByDate[draft.dueDate] = (hoursByDate[draft.dueDate] || 0) + hours

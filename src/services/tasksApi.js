@@ -1,7 +1,6 @@
 import { apiFetch } from './api'
 import { getEvent } from './eventsApi'
 import { buildTaskPayload, normalizeTask } from './mappers'
-import { DAILY_LIMIT_HOURS } from '../utils/tasks'
 import { toDateKey } from '../utils/dates'
 
 export async function createTask(eventId, data) {
@@ -43,7 +42,11 @@ export async function postponeTask(id) {
 }
 
 /** Devuelve el conflicto de sobrecarga para una fecha, o null si cabe en el límite diario. */
-export async function getConflictForDate(eventId, date, { excludeId = null, addHours = 0 } = {}) {
+export async function getConflictForDate(
+  eventId,
+  date,
+  { excludeId = null, addHours = 0, dailyHoursLimit }
+) {
   const raw = await apiFetch(`/events/${eventId}/tasks/`)
   const pendingThatDay = raw
     .map((task) => normalizeTask(task))
@@ -52,11 +55,11 @@ export async function getConflictForDate(eventId, date, { excludeId = null, addH
   const scheduled = pendingThatDay.reduce((sum, task) => sum + task.hours, 0) + Number(addHours)
   const scheduledHours = Math.round(scheduled * 10) / 10
 
-  if (scheduledHours <= DAILY_LIMIT_HOURS) return null
+  if (scheduledHours <= dailyHoursLimit) return null
   return {
     date,
     scheduledHours,
-    limitHours: DAILY_LIMIT_HOURS,
+    limitHours: dailyHoursLimit,
     overloadIds: pendingThatDay.map((task) => task.id),
   }
 }

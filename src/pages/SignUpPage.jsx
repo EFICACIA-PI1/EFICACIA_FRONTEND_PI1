@@ -8,7 +8,6 @@ import { authInputCls, authInputErrorCls } from '../utils/forms'
 import usePageTitle from '../hooks/usePageTitle'
 import {
   compactErrors,
-  validateDocument,
   validateEmail,
   validateFullName,
   validateNewPassword,
@@ -21,7 +20,6 @@ function validate(form) {
     fullName: validateFullName(form.fullName),
     username: validateRequired(form.username, 'Elige un nombre de usuario.'),
     email: validateEmail(form.email),
-    documentNumber: validateDocument(form.documentNumber),
     phone: validatePhone(form.phone),
     ...validateNewPassword(form.password, form.confirm),
   })
@@ -30,7 +28,6 @@ function validate(form) {
 // Nombres de campo del backend -> nombres del formulario
 const SERVER_FIELDS = {
   full_name: 'fullName',
-  document_number: 'documentNumber',
   password_confirm: 'confirm',
 }
 
@@ -43,7 +40,6 @@ export default function SignUpPage() {
     fullName: '',
     username: '',
     email: '',
-    documentNumber: '',
     phone: '',
     address: '',
     password: '',
@@ -120,13 +116,12 @@ export default function SignUpPage() {
       <FormAlert message={serverError} />
       <form onSubmit={handleSubmit} noValidate className="space-y-4">
         {textField('fullName', 'Nombre completo', { autoComplete: 'name', autoFocus: true, placeholder: 'Ej. María Pérez' })}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 items-start gap-4">
           {textField('username', 'Usuario', { autoComplete: 'username', placeholder: 'Ej. maria.perez' })}
-          {textField('documentNumber', 'Documento', { inputMode: 'numeric', placeholder: '6 a 12 dígitos' })}
-        </div>
-        {textField('email', 'Correo electrónico', { type: 'email', autoComplete: 'email', inputMode: 'email', placeholder: 'correo@ejemplo.com' })}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {textField('phone', 'Teléfono', { type: 'tel', autoComplete: 'tel', placeholder: '300 123 4567' })}
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 items-start gap-4">
+          {textField('email', 'Correo electrónico', { type: 'email', autoComplete: 'email', inputMode: 'email', placeholder: 'correo@ejemplo.com' })}
           {textField('address', 'Dirección', { optional: true, autoComplete: 'street-address', placeholder: 'Calle 10 # 5-20' })}
         </div>
         <Field label="Contraseña" htmlFor="password" required hint="Mínimo 8 caracteres." error={errors.password}>

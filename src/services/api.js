@@ -29,7 +29,12 @@ export class ApiError extends Error {
     super(message)
     this.status = status
     this.payload = payload
+    this.data = payload
   }
+}
+
+export function isOverloadConflict(error) {
+  return error?.status === 409 && error?.data?.code === 'daily_overload'
 }
 
 /** Convierte las respuestas de error de DRF en un mensaje legible y errores por campo. */

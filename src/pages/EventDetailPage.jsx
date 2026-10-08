@@ -8,13 +8,16 @@ import Icon from '../components/Icon'
 import { useToast } from '../context/ToastContext'
 import ResultModal from '../components/ResultModal'
 import TaskFormModal from '../components/TaskFormModal'
+import OverloadConflictModal from '../components/OverloadConflictModal'
 import EventFormModal from '../components/EventFormModal'
 import { getEventDetail, updateEvent, deleteEvent } from '../services/eventsApi'
 import { eventTypeLabel } from '../utils/events'
-import { createTask, updateTask, deleteTask, postponeTask } from '../services/tasksApi'
-import { formatHours, getTaskStatus } from '../utils/tasks'
+import { updateTask, deleteTask } from '../services/tasksApi'
+import { DEFAULT_DAILY_HOURS_LIMIT, formatHours, getTaskStatus } from '../utils/tasks'
 import { formatDate, formatDateShort } from '../utils/format'
 import usePageTitle from '../hooks/usePageTitle'
+import useRescheduleFlow from '../hooks/useRescheduleFlow'
+import { useAuth } from '../context/AuthContext'
 import { ErrorState, LoadingState } from '../components/StateViews'
 
 function TaskCard({ task, onPostpone, onReschedule, onEdit, onDelete }) {
@@ -76,6 +79,8 @@ export default function EventDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const toast = useToast()
+  const { user } = useAuth()
+  const dailyHoursLimit = user?.dailyHoursLimit ?? DEFAULT_DAILY_HOURS_LIMIT
 
   const [state, setState] = useState('loading')
   const [event, setEvent] = useState(null)
@@ -113,6 +118,22 @@ export default function EventDetailPage() {
     return () => controller.abort()
   }, [load])
 
+  const taskSaveFlow = useRescheduleFlow({
+    onSuccess: ({ mode }) => {
+      setTaskForm({ open: false, mode: 'create', task: null })
+      toast.success(
+        mode === 'postpone'
+          ? 'Gestión pospuesta al siguiente día.'
+          : mode === 'reschedule'
+            ? `Listo: la gestión quedó reprogramada y el día queda dentro de tu límite de ${dailyHoursLimit} h.`
+            : 'Gestión agregada al plan logístico.'
+      )
+      load()
+    },
+    onFailure: () => errorModal('Error', 'Ha ocurrido un error al posponer la gestión, inténtalo de nuevo.'),
+    onInvalid: (message) => errorModal('Error', message),
+  })
+
   function errorModal(title, message) {
     setResult({ type: 'error', title, message })
   }
@@ -131,20 +152,16 @@ export default function EventDetailPage() {
 
   async function handleTaskSave(data) {
     const { mode, task } = taskForm
+    if (mode === 'create' || mode === 'reschedule') {
+      await taskSaveFlow.save({ mode, event, task }, data)
+      return
+    }
     try {
-      if (!event?.id && mode !== 'create') {
+      if (!event?.id) {
         throw new Error('Evento no encontrado')
       }
-      if (mode === 'create') {
-        await createTask(event.id, data)
-        toast.success('Gestión agregada al plan logístico.')
-      } else if (mode === 'reschedule') {
-        await updateTask(task.id, data, event.id)
-        toast.success('Gestión reprogramada a la nueva fecha.')
-      } else {
-        await updateTask(task.id, data, event.id)
-        toast.success('Gestión actualizada.')
-      }
+      await updateTask(task.id, data, event.id)
+      toast.success('Gestión actualizada.')
       setTaskForm({ open: false, mode: 'create', task: null })
       load()
     } catch {
@@ -176,14 +193,16 @@ export default function EventDetailPage() {
     }
   }
 
-  async function handlePostpone(task) {
-    try {
-      await postponeTask(task.id)
-      toast.success('Gestión pospuesta al siguiente día.')
-      load()
-    } catch {
-      errorModal('Error', 'Ha ocurrido un error al posponer la gestión, inténtalo de nuevo.')
+  function handlePostpone(task) {
+    return taskSaveFlow.postpone({ task, event })
+  }
+
+  function moveConflictToAnotherDay() {
+    const target = taskSaveFlow.target
+    if (target?.mode === 'postpone') {
+      setTaskForm({ open: true, mode: 'reschedule', task: target.task })
     }
+    taskSaveFlow.moveToAnotherDay()
   }
 
   function closeResult() {
@@ -347,9 +366,29 @@ export default function EventDetailPage() {
         open={taskForm.open}
         mode={taskForm.mode}
         event={event}
+        eventDate={event?.date}
         task={taskForm.task}
         onSave={handleTaskSave}
-        onClose={() => setTaskForm({ open: false, mode: 'create', task: null })}
+        onClose={() => {
+          setTaskForm({ open: false, mode: 'create', task: null })
+          taskSaveFlow.cancel()
+        }}
+        saveError={taskSaveFlow.error}
+        onClearSaveError={taskSaveFlow.clearError}
+        focusDateRequest={taskSaveFlow.focusDateRequest}
+      />
+
+      <OverloadConflictModal
+        open={Boolean(taskSaveFlow.conflict)}
+        conflict={taskSaveFlow.conflict}
+        currentHours={taskSaveFlow.lastData?.estimated_hours ?? taskSaveFlow.lastData?.hours ?? taskForm.task?.hours ?? taskSaveFlow.target?.task.hours}
+        busy={taskSaveFlow.busy}
+        onMoveToAnotherDay={moveConflictToAnotherDay}
+        onReduceHours={taskSaveFlow.retryWithHours}
+        onCancel={() => {
+          setTaskForm({ open: false, mode: 'create', task: null })
+          taskSaveFlow.cancel()
+        }}
       />
 
       <ConfirmModal
