@@ -21,11 +21,6 @@ const MODE_META = {
     subtitle: 'Actualiza los datos de la gestión.',
     cta: 'Guardar cambios',
   },
-  reschedule: {
-    title: 'Reprogramar gestión',
-    subtitle: 'Elige la nueva fecha límite y ajusta las horas si es necesario.',
-    cta: 'Reprogramar gestión',
-  },
 }
 
 const emptyForm = { name: '', dueDate: '', hours: '', note: '' }
@@ -123,16 +118,14 @@ function TaskFormFields({
       return
     }
     setConflict(null)
-    if (mode !== 'reschedule') {
-      const found = await getConflictForDate(event.id, form.dueDate, {
-        excludeId: mode === 'create' ? null : task?.id,
-        addHours: Number(form.hours),
-        dailyHoursLimit,
-      })
-      if (found) {
-        setConflict(found)
-        return
-      }
+    const found = await getConflictForDate(event.id, form.dueDate, {
+      excludeId: mode === 'create' ? null : task?.id,
+      addHours: Number(form.hours),
+      dailyHoursLimit,
+    })
+    if (found) {
+      setConflict(found)
+      return
     }
     setSaveError('')
     setSubmitting(true)

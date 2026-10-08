@@ -1,7 +1,6 @@
 import { apiFetch } from './api'
 import { getEvent } from './eventsApi'
 import { buildTaskPayload, normalizeTask } from './mappers'
-import { toDateKey } from '../utils/dates'
 
 export async function createTask(eventId, data) {
   const created = await apiFetch(`/events/${eventId}/tasks/`, {
@@ -28,16 +27,6 @@ export async function markTaskDone(id) {
   return apiFetch(`/tasks/${id}/`, {
     method: 'PATCH',
     body: JSON.stringify({ state: 'hecha' }),
-  })
-}
-
-export async function postponeTask(id) {
-  const current = await apiFetch(`/tasks/${id}/`)
-  const nextDay = new Date(`${current.due_date}T00:00:00`)
-  nextDay.setDate(nextDay.getDate() + 1)
-  return apiFetch(`/tasks/${id}/`, {
-    method: 'PATCH',
-    body: JSON.stringify({ due_date: toDateKey(nextDay) }),
   })
 }
 
