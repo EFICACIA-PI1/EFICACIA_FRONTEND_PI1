@@ -140,7 +140,12 @@ function TaskFormFields({
         estimated_hours: Number(form.hours),
       })
     } catch (err) {
-      setSaveError(err.message || 'No se pudo guardar la gestión. Inténtalo de nuevo.')
+      const dueDateError = err.fields?.due_date
+      if (dueDateError) {
+        setErrors((prev) => ({ ...prev, dueDate: dueDateError }))
+      } else {
+        setSaveError(err.message || 'No se pudo guardar la gestión. Inténtalo de nuevo.')
+      }
     } finally {
       setSubmitting(false)
     }
