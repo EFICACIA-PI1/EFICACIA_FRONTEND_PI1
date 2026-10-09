@@ -50,6 +50,11 @@ export default function TaskQuickEditDialogs({ request, onClose, onDone }) {
       await onDone?.()
       onClose()
     },
+    onError: (error, context) => {
+      if (request.mode === 'date' && context.mode === 'date' && error.status === 400) {
+        setStep('confirm')
+      }
+    },
   })
 
   function cancel() {
@@ -106,8 +111,8 @@ export default function TaskQuickEditDialogs({ request, onClose, onDone }) {
       })
       const currentHours = request.mode === 'hours' ? Number(hours) : Number(request.task.hours)
       const total = otherHours + currentHours
+      setPlannedHours(total)
       if (total <= dailyHoursLimit) {
-        setPlannedHours(total)
         setStep('confirm')
         return
       }
@@ -216,9 +221,11 @@ export default function TaskQuickEditDialogs({ request, onClose, onDone }) {
                 <p id="quick-confirm-description" className="text-sm text-muted leading-relaxed mt-2">
                   ¿Seguro que quieres reprogramar la gestión para el {formatDateLong(selectedDate)}?
                 </p>
-                <p className="text-sm text-muted leading-relaxed mt-2">
-                  Quedarías con {compactHours(plannedHours)} para este día (tu límite es {compactHours(dailyHoursLimit)}).
-                </p>
+                {plannedHours != null && (
+                  <p className="text-sm text-muted leading-relaxed mt-2">
+                    Quedarías con {compactHours(plannedHours)} para este día (tu límite es {compactHours(dailyHoursLimit)}).
+                  </p>
+                )}
               </div>
             </div>
             {calendarError && (

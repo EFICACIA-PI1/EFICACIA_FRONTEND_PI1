@@ -146,18 +146,13 @@ export default function EventDetailPage() {
       await taskSaveFlow.save({ mode, event, task }, data)
       return
     }
-    try {
-      if (!event?.id) {
-        throw new Error('Evento no encontrado')
-      }
-      await updateTask(task.id, data, event.id)
-      toast.success('Gestión actualizada.')
-      setTaskForm({ open: false, mode: 'create', task: null })
-      load()
-    } catch {
-      setTaskForm({ open: false, mode: 'create', task: null })
-      errorModal('Error', 'Ha ocurrido un error al guardar la gestión, inténtalo de nuevo.')
+    if (!event?.id) {
+      throw new Error('Evento no encontrado')
     }
+    await updateTask(task.id, data, event.id)
+    toast.success('Gestión actualizada.')
+    setTaskForm({ open: false, mode: 'create', task: null })
+    load()
   }
 
   async function handleDeleteConfirm() {

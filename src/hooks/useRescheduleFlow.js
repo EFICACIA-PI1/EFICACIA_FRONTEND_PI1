@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { createTask, updateTask } from '../services/tasksApi'
 import { isOverloadConflict } from '../services/api'
 
-export default function useRescheduleFlow({ onSuccess }) {
+export default function useRescheduleFlow({ onSuccess, onError }) {
   const [target, setTarget] = useState(null)
   const [conflict, setConflict] = useState(null)
   const [lastData, setLastData] = useState(null)
@@ -29,6 +29,7 @@ export default function useRescheduleFlow({ onSuccess }) {
       } else {
         setConflict(null)
         setError(err.message || 'No se pudo guardar la gestión. Inténtalo de nuevo.')
+        onError?.(err, context)
       }
     } finally {
       setBusy(false)
