@@ -55,7 +55,7 @@ export default function DailyLimitBadge() {
           open ? '' : 'hidden'
         }`}
       >
-        Estas son las horas máximas que planificas por día. Para cambiarlas, ve a Perfil.
+        Estas son las horas máximas que planificas por día. Para cambiarlas, ve al módulo Mi perfil.
       </div>
       <button
         type="button"
@@ -94,9 +94,9 @@ export default function DailyLimitBadge() {
             setPinned((value) => !value)
           }
         }}
-        className="inline-flex items-center gap-1.5 rounded-full border border-edge bg-white px-3 py-2 text-xs font-medium text-navy shadow-md transition-colors hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+        className="inline-flex items-center gap-2 rounded-full border border-primary bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
       >
-        <Icon name="clock" className="h-4 w-4" />
+        <Icon name="clock" className="h-5 w-5" />
         Límite diario: {dailyHoursLimit} h
       </button>
     </div>

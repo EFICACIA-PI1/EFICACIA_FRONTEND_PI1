@@ -129,7 +129,6 @@ export default function ProfilePage() {
     { label: 'Correo electrónico', value: user?.email },
     { label: 'Teléfono', value: user?.phone },
     { label: 'Límite diario de horas', value: `${user?.dailyHoursLimit ?? 6} h` },
-    { label: 'Dirección', value: user?.address },
   ]
 
   async function handleLogout() {
