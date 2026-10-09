@@ -29,6 +29,15 @@ export function validatePhone(value) {
   return ''
 }
 
+export function validateDailyHoursLimit(value) {
+  const limit = String(value ?? '').trim()
+  if (!limit) return ''
+  if (!Number.isInteger(Number(limit)) || Number(limit) < 1 || Number(limit) > 16) {
+    return 'Escribe un número entero entre 1 y 16.'
+  }
+  return ''
+}
+
 export function validateNewPassword(password, confirm) {
   const errors = {}
   if (password.length < MIN_PASSWORD_LENGTH) {

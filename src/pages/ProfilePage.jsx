@@ -27,7 +27,6 @@ function ProfileForm({ user, onCancel, onSaved }) {
   const [form, setForm] = useState({
     fullName: user.fullName,
     phone: user.phone,
-    address: user.address,
     email: user.email,
     dailyHoursLimit: String(user.dailyHoursLimit ?? 6),
   })
@@ -97,10 +96,7 @@ function ProfileForm({ user, onCancel, onSaved }) {
     <form onSubmit={handleSubmit} noValidate className="p-5 space-y-4">
       {field('fullName', 'Nombre completo', { autoComplete: 'name', autoFocus: true })}
       {field('email', 'Correo electrónico', { type: 'email', autoComplete: 'email', inputMode: 'email' })}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {field('phone', 'Teléfono', { type: 'tel', autoComplete: 'tel' })}
-        {field('address', 'Dirección', { required: false, autoComplete: 'street-address' })}
-      </div>
+      {field('phone', 'Teléfono', { type: 'tel', autoComplete: 'tel' })}
       {field('dailyHoursLimit', 'Límite diario de horas', {
         type: 'number',
         min: 1,

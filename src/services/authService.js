@@ -15,18 +15,20 @@ export async function login({ username, password }) {
 
 /** POST /auth/register/ -> { token, user } */
 export async function register(form) {
+  const body = {
+    username: form.username.trim(),
+    email: form.email.trim(),
+    password: form.password,
+    password_confirm: form.confirm,
+    full_name: form.fullName.trim(),
+    phone: form.phone.trim(),
+  }
+  if (form.dailyHoursLimit.trim()) body.daily_hours_limit = Number(form.dailyHoursLimit)
+
   return apiFetch('/auth/register/', {
     method: 'POST',
     auth: false,
-    body: json({
-      username: form.username.trim(),
-      email: form.email.trim(),
-      password: form.password,
-      password_confirm: form.confirm,
-      full_name: form.fullName.trim(),
-      phone: form.phone.trim(),
-      address: form.address.trim(),
-    }),
+    body: json(body),
   })
 }
 
@@ -40,14 +42,13 @@ export async function getMe({ signal } = {}) {
   return normalizeUser(await apiFetch('/auth/me/', { signal }))
 }
 
-/** PATCH /auth/me/ — solo full_name, phone, address y email son editables. */
-export async function updateMe({ fullName, phone, address, email, dailyHoursLimit }) {
+/** PATCH /auth/me/ — solo full_name, phone, email y daily_hours_limit son editables. */
+export async function updateMe({ fullName, phone, email, dailyHoursLimit }) {
   const data = await apiFetch('/auth/me/', {
     method: 'PATCH',
     body: json({
       full_name: fullName.trim(),
       phone: phone.trim(),
-      address: address.trim(),
       email: email.trim(),
       daily_hours_limit: Number(dailyHoursLimit),
     }),
