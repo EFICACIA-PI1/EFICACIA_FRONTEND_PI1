@@ -363,7 +363,7 @@ export default function CreatePage() {
             />
           </Field>
 
-          <Field label="Lugar / Venue" htmlFor="ev-location" required error={errors.location}>
+          <Field label="Lugar del evento" htmlFor="ev-location" required error={errors.location}>
             <input
               id="ev-location"
               type="text"

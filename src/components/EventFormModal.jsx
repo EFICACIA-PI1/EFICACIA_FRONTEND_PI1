@@ -144,7 +144,7 @@ function EventFormFields({ event, onSave, onClose }) {
             />
           </Field>
 
-          <Field label="Lugar / Venue" htmlFor="ee-location" required error={errors.location}>
+          <Field label="Lugar del evento" htmlFor="ee-location" required error={errors.location}>
             <input
               id="ee-location"
               type="text"
