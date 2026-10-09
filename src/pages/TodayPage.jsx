@@ -13,6 +13,7 @@ import { DEFAULT_DAILY_HOURS_LIMIT, formatHours, TASK_STATES } from '../utils/ta
 import { formatDate, formatDateShort } from '../utils/format'
 import usePageTitle from '../hooks/usePageTitle'
 import { EmptyState, ErrorState, LoadingState } from '../components/StateViews'
+import DailyLimitBadge from '../components/DailyLimitBadge'
 
 const DANGER = 'bg-danger-bg text-danger border-danger-border'
 const WARNING = 'bg-warning-bg text-warning border-warning-border'
@@ -101,7 +102,7 @@ function TodayEmptyState({ onViewPlan, filtered, onClear }) {
     <EmptyState
       icon="sun"
       title="¡Día libre!"
-      description="No tienes gestiones urgentes para hoy. ¿Quieres adelantar trabajo o tomar un descanso?"
+      description="No tienes gestiones urgentes para hoy."
       action={
         <Button variant="neutral" onClick={onViewPlan}>
           Ver plan completo
@@ -324,6 +325,7 @@ export default function TodayPage() {
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-16 max-w-4xl mx-auto w-full">
+      <DailyLimitBadge />
       <header className="mb-8">
         <h1 className="text-2xl sm:text-3xl font-semibold leading-tight mb-2 text-navy font-display">
           {displayName ? `Hola, ${displayName}.` : 'Hola.'} Aquí está tu plan logístico para hoy.

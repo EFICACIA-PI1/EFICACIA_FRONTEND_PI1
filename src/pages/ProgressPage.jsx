@@ -6,6 +6,7 @@ import ProgressBar from '../components/ProgressBar'
 import { listEventsWithProgress } from '../services/eventsApi'
 import usePageTitle from '../hooks/usePageTitle'
 import { EmptyState, ErrorState, LoadingState } from '../components/StateViews'
+import DailyLimitBadge from '../components/DailyLimitBadge'
 
 function StatCard({ label, value, sub, colorClass = 'text-primary' }) {
   return (
@@ -57,6 +58,7 @@ export default function ProgressPage() {
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-16 max-w-4xl mx-auto w-full">
+      <DailyLimitBadge />
       <header className="mb-8">
         <h1 className="text-2xl sm:text-3xl font-semibold text-navy font-display">Progreso</h1>
         <p className="text-sm mt-1 text-muted">

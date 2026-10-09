@@ -10,6 +10,7 @@ import {
   compactErrors,
   validateEmail,
   validateFullName,
+  validateDailyHoursLimit,
   validateNewPassword,
   validatePhone,
   validateRequired,
@@ -21,6 +22,7 @@ function validate(form) {
     username: validateRequired(form.username, 'Elige un nombre de usuario.'),
     email: validateEmail(form.email),
     phone: validatePhone(form.phone),
+    dailyHoursLimit: validateDailyHoursLimit(form.dailyHoursLimit),
     ...validateNewPassword(form.password, form.confirm),
   })
 }
@@ -29,6 +31,7 @@ function validate(form) {
 const SERVER_FIELDS = {
   full_name: 'fullName',
   password_confirm: 'confirm',
+  daily_hours_limit: 'dailyHoursLimit',
 }
 
 export default function SignUpPage() {
@@ -41,7 +44,7 @@ export default function SignUpPage() {
     username: '',
     email: '',
     phone: '',
-    address: '',
+    dailyHoursLimit: '',
     password: '',
     confirm: '',
   })
@@ -83,19 +86,24 @@ export default function SignUpPage() {
     }
   }
 
-  function textField(id, label, { optional = false, ...props } = {}) {
+  function textField(id, label, { optional = false, required = !optional, hint, ...props } = {}) {
     return (
-      <Field label={label} htmlFor={id} required={!optional} optional={optional} error={errors[id]}>
-        <input
-          id={id}
-          name={id}
-          value={form[id]}
-          onChange={(e) => update(id, e.target.value)}
-          className={errors[id] ? authInputErrorCls : authInputCls}
-          aria-invalid={Boolean(errors[id])}
-          aria-describedby={errors[id] ? `${id}-error` : undefined}
-          {...props}
-        />
+      <Field label={label} htmlFor={id} required={required} optional={optional} error={errors[id]}>
+        <>
+          <input
+            id={id}
+            name={id}
+            value={form[id]}
+            onChange={(e) => update(id, e.target.value)}
+            className={errors[id] ? authInputErrorCls : authInputCls}
+            aria-invalid={Boolean(errors[id])}
+            aria-describedby={
+              [errors[id] && `${id}-error`, hint && `${id}-hint`].filter(Boolean).join(' ') || undefined
+            }
+            {...props}
+          />
+          {hint && <p id={`${id}-hint`} className="mt-1.5 whitespace-nowrap text-xs text-muted">{hint}</p>}
+        </>
       </Field>
     )
   }
@@ -122,7 +130,15 @@ export default function SignUpPage() {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 items-start gap-4">
           {textField('email', 'Correo electrónico', { type: 'email', autoComplete: 'email', inputMode: 'email', placeholder: 'correo@ejemplo.com' })}
-          {textField('address', 'Dirección', { optional: true, autoComplete: 'street-address', placeholder: 'Calle 10 # 5-20' })}
+          {textField('dailyHoursLimit', 'Límite diario de horas', {
+            required: false,
+            type: 'number',
+            min: 1,
+            max: 16,
+            step: 1,
+            hint: 'Máximo por día. Vacío = 6 h.',
+            placeholder: '6',
+          })}
         </div>
         <Field label="Contraseña" htmlFor="password" required hint="Mínimo 8 caracteres." error={errors.password}>
           <PasswordInput

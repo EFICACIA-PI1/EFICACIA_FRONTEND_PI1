@@ -13,7 +13,7 @@ export default function Field({ label, htmlFor, required = false, optional = fal
       {hint && <p className="text-xs text-muted mb-1.5">{hint}</p>}
       {children}
       {error && (
-        <p id={`${htmlFor}-error`} role="alert" className="text-xs text-danger mt-1.5">
+        <p id={`${htmlFor}-error`} role="alert" className="text-xs text-danger mt-1.5 whitespace-pre-line break-words">
           {error}
         </p>
       )}
