@@ -1,10 +1,31 @@
+import { useEffect } from 'react'
 import Button from './Button'
 import Field from './Field'
 import Icon from './Icon'
 import { inputCls, inputErrorCls } from '../utils/forms'
 import { todayKey } from '../utils/dates'
 
-export default function TaskDraftList({ drafts, errors, onChange, onAdd, onRemove }) {
+export default function TaskDraftList({
+  drafts,
+  errors,
+  onChange,
+  onBlur,
+  retryDraftKey,
+  savedDraftKeys = [],
+  focusDateKey,
+  focusDateRequest,
+  onRetryDraft,
+  onAdd,
+  onRemove,
+}) {
+  useEffect(() => {
+    if (focusDateKey === null) return undefined
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById(`tk-${focusDateKey}-dueDate`)?.focus()
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [focusDateKey, focusDateRequest])
+
   return (
     <section aria-labelledby="drafts-heading" className="pt-2">
       <div className="flex items-start justify-between gap-3 mb-3">
@@ -22,18 +43,25 @@ export default function TaskDraftList({ drafts, errors, onChange, onAdd, onRemov
         <ul className="space-y-3" role="list">
           {drafts.map((draft, index) => {
             const rowErrors = errors[draft.key] || {}
+            const isSaved = savedDraftKeys.includes(draft.key)
             const id = (field) => `tk-${draft.key}-${field}`
             return (
               <li key={draft.key} className="rounded-xl border border-edge bg-white p-4 space-y-3">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-xs font-semibold uppercase tracking-wider text-subtle">
                     Gestión {index + 1}
                   </p>
+                  {retryDraftKey === draft.key && (
+                    <Button type="button" size="sm" onClick={() => onRetryDraft(draft.key)}>
+                      Reintentar gestión
+                    </Button>
+                  )}
                   <Button
                     type="button"
                     size="sm"
                     variant="subtle-danger"
                     onClick={() => onRemove(draft.key)}
+                    disabled={isSaved}
                     aria-label={`Quitar gestión ${index + 1}`}
                   >
                     <Icon name="trash" className="w-4 h-4" />
@@ -47,7 +75,10 @@ export default function TaskDraftList({ drafts, errors, onChange, onAdd, onRemov
                     type="text"
                     placeholder="Ej. Reservar salón principal"
                     value={draft.name}
+                    disabled={isSaved}
                     onChange={(e) => onChange(draft.key, 'name', e.target.value)}
+                    onBlur={() => onBlur(draft.key, 'name')}
+                    aria-required="true"
                     aria-invalid={Boolean(rowErrors.name)}
                     aria-describedby={rowErrors.name ? `${id('name')}-error` : undefined}
                     className={rowErrors.name ? inputErrorCls : inputCls}
@@ -61,7 +92,10 @@ export default function TaskDraftList({ drafts, errors, onChange, onAdd, onRemov
                       type="date"
                       min={todayKey()}
                       value={draft.dueDate}
+                      disabled={isSaved}
                       onChange={(e) => onChange(draft.key, 'dueDate', e.target.value)}
+                      onBlur={() => onBlur(draft.key, 'dueDate')}
+                      aria-required="true"
                       aria-invalid={Boolean(rowErrors.dueDate)}
                       aria-describedby={rowErrors.dueDate ? `${id('dueDate')}-error` : undefined}
                       className={rowErrors.dueDate ? inputErrorCls : inputCls}
@@ -75,7 +109,10 @@ export default function TaskDraftList({ drafts, errors, onChange, onAdd, onRemov
                       step="0.5"
                       placeholder="Ej. 2"
                       value={draft.hours}
+                      disabled={isSaved}
                       onChange={(e) => onChange(draft.key, 'hours', e.target.value)}
+                      onBlur={() => onBlur(draft.key, 'hours')}
+                      aria-required="true"
                       aria-invalid={Boolean(rowErrors.hours)}
                       aria-describedby={rowErrors.hours ? `${id('hours')}-error` : undefined}
                       className={rowErrors.hours ? inputErrorCls : inputCls}
@@ -89,6 +126,7 @@ export default function TaskDraftList({ drafts, errors, onChange, onAdd, onRemov
                     type="text"
                     placeholder="Detalles, proveedores, requisitos…"
                     value={draft.note}
+                    disabled={isSaved}
                     onChange={(e) => onChange(draft.key, 'note', e.target.value)}
                     className={inputCls}
                   />

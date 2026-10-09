@@ -2,7 +2,11 @@ import { apiFetch } from './api'
 import { listEvents } from './eventsApi'
 import { normalizeTask } from './mappers'
 import { todayKey } from '../utils/dates'
-import { compareByDueDateThenHours, computeProgress, DAILY_LIMIT_HOURS } from '../utils/tasks'
+import {
+  compareByDueDateThenHours,
+  computeProgress,
+  DEFAULT_DAILY_HOURS_LIMIT,
+} from '../utils/tasks'
 
 function buildQuery(params) {
   const query = new URLSearchParams()
@@ -18,14 +22,18 @@ function buildQuery(params) {
  * `event` (id) y `state` (pendiente | pospuesta | hecha) que resuelve el backend.
  * Las tareas de /hoy/ no traen el evento, por eso se consulta un evento a la vez.
  */
-export async function getTodayData({ eventId = '', state = '', signal } = {}) {
+export async function getTodayData({
+  eventId = '',
+  state = '',
+  signal,
+  dailyHoursLimit = DEFAULT_DAILY_HOURS_LIMIT,
+} = {}) {
   const allEvents = await listEvents({ signal })
-  const events = eventId ? allEvents.filter((event) => String(event.id) === String(eventId)) : allEvents
 
   const perEvent = await Promise.all(
-    events.map(async (event) => {
+    allEvents.map(async (event) => {
       const [hoy, detail] = await Promise.all([
-        apiFetch(`/hoy/${buildQuery({ event: event.id, state })}`, { signal }),
+        apiFetch(`/hoy/${buildQuery({ event: event.id })}`, { signal }),
         apiFetch(`/events/${event.id}/`, { signal }),
       ])
       return { event, hoy, detail }
@@ -44,22 +52,9 @@ export async function getTodayData({ eventId = '', state = '', signal } = {}) {
     })
 
     const todayTasks = (hoy.para_hoy || []).filter((task) => task.state !== 'hecha')
-    const scheduledHours = todayTasks.reduce((sum, task) => sum + Number(task.estimated_hours), 0)
-    const overloaded = scheduledHours > DAILY_LIMIT_HOURS
-
-    if (overloaded) {
-      conflicts.push({
-        eventId: event.id,
-        eventName: event.name,
-        date: todayKey(),
-        scheduledHours: Math.round(scheduledHours * 10) / 10,
-        limitHours: DAILY_LIMIT_HOURS,
-        overloadIds: todayTasks.map((task) => task.id),
-      })
-    }
 
     groups.vencidas.push(...(hoy.vencidas || []).map((task) => withEvent(task, 'vencida')))
-    groups.paraHoy.push(...todayTasks.map((task) => withEvent(task, overloaded ? 'overload' : 'urgent')))
+    groups.paraHoy.push(...todayTasks.map((task) => withEvent(task, 'urgent')))
     groups.proximas.push(...(hoy.proximas || []).map((task) => withEvent(task, 'upcoming')))
 
     const taskList = (detail.tasks || []).map((task) => normalizeTask(task, event))
@@ -70,10 +65,46 @@ export async function getTodayData({ eventId = '', state = '', signal } = {}) {
     })
   }
 
+  const scheduledHours = groups.paraHoy.reduce((sum, task) => sum + task.hours, 0)
+  if (scheduledHours > dailyHoursLimit) {
+    const roundedHours = Math.round(scheduledHours * 10) / 10
+    const overloadIds = groups.paraHoy.map((task) => task.id)
+    groups.paraHoy.forEach((task) => {
+      task.priority = 'overload'
+    })
+    conflicts.push({
+      eventId: null,
+      eventName: 'tu agenda',
+      date: todayKey(),
+      scheduledHours: roundedHours,
+      limitHours: dailyHoursLimit,
+      overloadIds,
+    })
+  }
+
   // Cada grupo se pide por evento: al unirlos hay que volver a ordenar.
   for (const group of Object.values(groups)) group.sort(compareByDueDateThenHours)
 
-  const items = [...groups.vencidas, ...groups.paraHoy, ...groups.proximas]
+  const visibleGroups = Object.fromEntries(
+    Object.entries(groups).map(([key, tasks]) => [
+      key,
+      tasks.filter((task) => {
+        if (eventId && String(task.eventId) !== String(eventId)) return false
+        if (state && task.state !== state) return false
+        return true
+      }),
+    ])
+  )
+  const items = [...visibleGroups.vencidas, ...visibleGroups.paraHoy, ...visibleGroups.proximas]
 
-  return { groups, items, conflicts, events: eventsWithProgress, allEvents }
+  return { groups: visibleGroups, items, conflicts, events: eventsWithProgress, allEvents }
+}
+
+export async function getPlannedHoursForDate(dateKey, { excludeTaskId, signal } = {}) {
+  const data = await apiFetch('/hoy/', { signal })
+  const tasks = [...(data.vencidas || []), ...(data.para_hoy || []), ...(data.proximas || [])]
+
+  return tasks
+    .filter((task) => task.due_date === dateKey && String(task.id) !== String(excludeTaskId))
+    .reduce((total, task) => total + Number(task.estimated_hours), 0)
 }

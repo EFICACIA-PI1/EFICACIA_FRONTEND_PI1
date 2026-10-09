@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import useScrollLock from '../hooks/useScrollLock'
 
 const TABBABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
@@ -10,21 +10,29 @@ export default function Modal({
   describedBy,
   maxWidth = 'max-w-lg',
   closeOnOverlay = true,
+  initialFocusRef,
   children,
 }) {
   const panelRef = useRef(null)
   const restoreRef = useRef(null)
+  const onCloseRef = useRef(onClose)
+
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
+
+  const handleClose = useCallback(() => onCloseRef.current?.(), [])
 
   useScrollLock(open)
 
   useEffect(() => {
     if (!open) return undefined
     restoreRef.current = document.activeElement
-    panelRef.current?.focus()
+    ;(initialFocusRef?.current || panelRef.current)?.focus()
 
     function onKeyDown(e) {
       if (e.key === 'Escape') {
-        onClose()
+        handleClose()
         return
       }
       if (e.key === 'Tab') {
@@ -49,7 +57,7 @@ export default function Modal({
       document.removeEventListener('keydown', onKeyDown)
       restoreRef.current?.focus?.()
     }
-  }, [open, onClose])
+  }, [open, handleClose, initialFocusRef])
 
   if (!open) return null
 
@@ -63,7 +71,7 @@ export default function Modal({
     >
       <div
         className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-        onClick={closeOnOverlay ? onClose : undefined}
+        onClick={closeOnOverlay ? handleClose : undefined}
         aria-hidden="true"
       />
       <div

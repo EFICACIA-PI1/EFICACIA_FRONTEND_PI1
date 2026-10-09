@@ -30,7 +30,6 @@ export function normalizeTask(raw = {}, event = null) {
     hours: Number.isFinite(hours) ? hours : 0,
     note: raw.description || raw.note || '',
     done: raw.state === 'hecha' || raw.state === 'done' || Boolean(raw.done),
-    postponed: raw.state === 'pospuesta' || Boolean(raw.postponed),
     state: raw.state || 'pendiente',
     eventName: event?.name || raw.event_name || '',
     priority: raw.priority || 'normal',

@@ -1,8 +1,6 @@
 import { apiFetch } from './api'
 import { getEvent } from './eventsApi'
 import { buildTaskPayload, normalizeTask } from './mappers'
-import { DAILY_LIMIT_HOURS } from '../utils/tasks'
-import { toDateKey } from '../utils/dates'
 
 export async function createTask(eventId, data) {
   const created = await apiFetch(`/events/${eventId}/tasks/`, {
@@ -32,18 +30,12 @@ export async function markTaskDone(id) {
   })
 }
 
-export async function postponeTask(id) {
-  const current = await apiFetch(`/tasks/${id}/`)
-  const nextDay = new Date(`${current.due_date}T00:00:00`)
-  nextDay.setDate(nextDay.getDate() + 1)
-  return apiFetch(`/tasks/${id}/`, {
-    method: 'PATCH',
-    body: JSON.stringify({ due_date: toDateKey(nextDay) }),
-  })
-}
-
 /** Devuelve el conflicto de sobrecarga para una fecha, o null si cabe en el límite diario. */
-export async function getConflictForDate(eventId, date, { excludeId = null, addHours = 0 } = {}) {
+export async function getConflictForDate(
+  eventId,
+  date,
+  { excludeId = null, addHours = 0, dailyHoursLimit }
+) {
   const raw = await apiFetch(`/events/${eventId}/tasks/`)
   const pendingThatDay = raw
     .map((task) => normalizeTask(task))
@@ -52,11 +44,11 @@ export async function getConflictForDate(eventId, date, { excludeId = null, addH
   const scheduled = pendingThatDay.reduce((sum, task) => sum + task.hours, 0) + Number(addHours)
   const scheduledHours = Math.round(scheduled * 10) / 10
 
-  if (scheduledHours <= DAILY_LIMIT_HOURS) return null
+  if (scheduledHours <= dailyHoursLimit) return null
   return {
     date,
     scheduledHours,
-    limitHours: DAILY_LIMIT_HOURS,
+    limitHours: dailyHoursLimit,
     overloadIds: pendingThatDay.map((task) => task.id),
   }
 }

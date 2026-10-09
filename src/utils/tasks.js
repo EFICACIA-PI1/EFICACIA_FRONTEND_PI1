@@ -1,6 +1,6 @@
 import { todayKey } from './dates'
 
-export const DAILY_LIMIT_HOURS = 6
+export const DEFAULT_DAILY_HOURS_LIMIT = 6
 
 export const TASK_STATES = [
   { value: 'pendiente', label: 'Pendientes' },

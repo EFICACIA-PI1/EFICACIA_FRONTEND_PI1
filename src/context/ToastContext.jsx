@@ -9,13 +9,17 @@ const VARIANTS = {
   info: { icon: 'info', cls: 'border-neutral-border text-neutral' },
 }
 
-const DURATION_MS = 4000
+const TOAST_DURATION_MS = 20000
 
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([])
   const nextId = useRef(0)
+  const timers = useRef(new Map())
 
   const dismiss = useCallback((id) => {
+    const timer = timers.current.get(id)
+    if (timer) clearTimeout(timer)
+    timers.current.delete(id)
     setToasts((prev) => prev.filter((toast) => toast.id !== id))
   }, [])
 
@@ -23,7 +27,8 @@ export function ToastProvider({ children }) {
     (type, message) => {
       const id = nextId.current++
       setToasts((prev) => [...prev, { id, type, message }])
-      setTimeout(() => dismiss(id), DURATION_MS)
+      const timer = setTimeout(() => dismiss(id), TOAST_DURATION_MS)
+      timers.current.set(id, timer)
     },
     [dismiss]
   )

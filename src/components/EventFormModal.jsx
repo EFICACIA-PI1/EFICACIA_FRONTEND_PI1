@@ -4,6 +4,14 @@ import Button from './Button'
 import Field from './Field'
 import { inputCls, inputErrorCls } from '../utils/forms'
 import { EVENT_TYPE_OPTIONS } from '../utils/events'
+import { todayKey } from '../utils/dates'
+
+const FIELD_IDS = {
+  name: 'ee-name',
+  client: 'ee-client',
+  date: 'ee-date',
+  location: 'ee-location',
+}
 
 function EventFormFields({ event, onSave, onClose }) {
   const [form, setForm] = useState({
@@ -17,17 +25,27 @@ function EventFormFields({ event, onSave, onClose }) {
   const [submitting, setSubmitting] = useState(false)
 
   function setField(field, value) {
-    setForm((prev) => ({ ...prev, [field]: value }))
-    setErrors((prev) => ({ ...prev, [field]: undefined }))
+    const nextForm = { ...form, [field]: value }
+    setForm(nextForm)
+    const fieldError = validate(nextForm)[field]
+    setErrors((prev) => ({ ...prev, [field]: fieldError || undefined }))
+  }
+
+  function validateOnBlur(field) {
+    const fieldError = validate(form)[field]
+    if (fieldError) setErrors((prev) => ({ ...prev, [field]: fieldError }))
   }
 
   function validate(values) {
     const next = {}
-    if (!values.name.trim()) next.name = 'Este campo es obligatorio.'
-    if (!values.client.trim()) next.client = 'Este campo es obligatorio.'
-    if (!values.location.trim()) next.location = 'Este campo es obligatorio.'
-    if (!values.date) next.date = 'Este campo es obligatorio.'
+    if (!values.name.trim()) next.name = 'Escribe el nombre del evento.'
+    if (!values.client.trim()) next.client = 'Escribe el nombre del cliente o contratante.'
+    if (!values.location.trim()) next.location = 'Escribe el lugar del evento.'
+    if (!values.date) next.date = 'Elige la fecha del evento.'
     else if (!/^\d{4}-\d{2}-\d{2}$/.test(values.date)) next.date = 'Ingresa una fecha válida.'
+    else if (values.date !== event.date && values.date < todayKey()) {
+      next.date = 'La fecha del evento no puede ser anterior a hoy.'
+    }
     return next
   }
 
@@ -37,6 +55,8 @@ function EventFormFields({ event, onSave, onClose }) {
     const nextErrors = validate(form)
     if (Object.values(nextErrors).some(Boolean)) {
       setErrors(nextErrors)
+      const firstField = Object.keys(nextErrors)[0]
+      document.getElementById(FIELD_IDS[firstField])?.focus()
       return
     }
     setSubmitting(true)
@@ -59,6 +79,7 @@ function EventFormFields({ event, onSave, onClose }) {
         <h2 id="event-form-title" className="text-lg font-semibold text-navy">
           Editar evento
         </h2>
+        <p className="text-xs text-muted mt-1"><span className="text-danger" aria-hidden="true">*</span> Campo obligatorio</p>
         <p className="text-sm text-muted mt-0.5">Actualiza la información básica del evento.</p>
       </div>
 
@@ -69,6 +90,8 @@ function EventFormFields({ event, onSave, onClose }) {
             type="text"
             value={form.name}
             onChange={(e) => setField('name', e.target.value)}
+            onBlur={() => validateOnBlur('name')}
+            aria-required="true"
             aria-invalid={Boolean(errors.name)}
             aria-describedby={errors.name ? 'ee-name-error' : undefined}
             className={errors.name ? inputErrorCls : inputCls}
@@ -97,6 +120,8 @@ function EventFormFields({ event, onSave, onClose }) {
               type="text"
               value={form.client}
               onChange={(e) => setField('client', e.target.value)}
+              onBlur={() => validateOnBlur('client')}
+              aria-required="true"
               aria-invalid={Boolean(errors.client)}
               aria-describedby={errors.client ? 'ee-client-error' : undefined}
               className={errors.client ? inputErrorCls : inputCls}
@@ -111,6 +136,8 @@ function EventFormFields({ event, onSave, onClose }) {
               type="date"
               value={form.date}
               onChange={(e) => setField('date', e.target.value)}
+              onBlur={() => validateOnBlur('date')}
+              aria-required="true"
               aria-invalid={Boolean(errors.date)}
               aria-describedby={errors.date ? 'ee-date-error' : undefined}
               className={errors.date ? inputErrorCls : inputCls}
@@ -123,6 +150,8 @@ function EventFormFields({ event, onSave, onClose }) {
               type="text"
               value={form.location}
               onChange={(e) => setField('location', e.target.value)}
+              onBlur={() => validateOnBlur('location')}
+              aria-required="true"
               aria-invalid={Boolean(errors.location)}
               aria-describedby={errors.location ? 'ee-location-error' : undefined}
               className={errors.location ? inputErrorCls : inputCls}

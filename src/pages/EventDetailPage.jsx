@@ -8,16 +8,19 @@ import Icon from '../components/Icon'
 import { useToast } from '../context/ToastContext'
 import ResultModal from '../components/ResultModal'
 import TaskFormModal from '../components/TaskFormModal'
+import TaskQuickEditDialogs from '../components/TaskQuickEditDialogs'
+import OverloadConflictModal from '../components/OverloadConflictModal'
 import EventFormModal from '../components/EventFormModal'
 import { getEventDetail, updateEvent, deleteEvent } from '../services/eventsApi'
 import { eventTypeLabel } from '../utils/events'
-import { createTask, updateTask, deleteTask, postponeTask } from '../services/tasksApi'
+import { updateTask, deleteTask } from '../services/tasksApi'
 import { formatHours, getTaskStatus } from '../utils/tasks'
 import { formatDate, formatDateShort } from '../utils/format'
 import usePageTitle from '../hooks/usePageTitle'
+import useRescheduleFlow from '../hooks/useRescheduleFlow'
 import { ErrorState, LoadingState } from '../components/StateViews'
 
-function TaskCard({ task, onPostpone, onReschedule, onEdit, onDelete }) {
+function TaskCard({ task, onEditHours, onReschedule, onEdit, onDelete }) {
   const status = getTaskStatus(task)
   const dotClass =
     status === 'done'
@@ -48,8 +51,8 @@ function TaskCard({ task, onPostpone, onReschedule, onEdit, onDelete }) {
         </div>
 
         <div className="flex items-center gap-1 flex-wrap justify-end shrink-0">
-          <Button size="sm" variant="neutral" onClick={() => onPostpone(task)}>
-            Posponer para mañana
+          <Button size="sm" variant="neutral" onClick={() => onEditHours(task)}>
+            Modificar horas
           </Button>
           <Button size="sm" variant="neutral" onClick={() => onReschedule(task)}>
             Reprogramar
@@ -76,7 +79,6 @@ export default function EventDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const toast = useToast()
-
   const [state, setState] = useState('loading')
   const [event, setEvent] = useState(null)
   const [tasks, setTasks] = useState([])
@@ -84,6 +86,7 @@ export default function EventDetailPage() {
   const [progress, setProgress] = useState({ total: 0, done: 0, percent: 0 })
 
   const [taskForm, setTaskForm] = useState({ open: false, mode: 'create', task: null })
+  const [quick, setQuick] = useState(null)
   const [eventFormOpen, setEventFormOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [mutating, setMutating] = useState(false)
@@ -113,6 +116,14 @@ export default function EventDetailPage() {
     return () => controller.abort()
   }, [load])
 
+  const taskSaveFlow = useRescheduleFlow({
+    onSuccess: () => {
+      setTaskForm({ open: false, mode: 'create', task: null })
+      toast.success('Gestión agregada al plan logístico.')
+      load()
+    },
+  })
+
   function errorModal(title, message) {
     setResult({ type: 'error', title, message })
   }
@@ -131,20 +142,16 @@ export default function EventDetailPage() {
 
   async function handleTaskSave(data) {
     const { mode, task } = taskForm
+    if (mode === 'create') {
+      await taskSaveFlow.save({ mode, event, task }, data)
+      return
+    }
     try {
-      if (!event?.id && mode !== 'create') {
+      if (!event?.id) {
         throw new Error('Evento no encontrado')
       }
-      if (mode === 'create') {
-        await createTask(event.id, data)
-        toast.success('Gestión agregada al plan logístico.')
-      } else if (mode === 'reschedule') {
-        await updateTask(task.id, data, event.id)
-        toast.success('Gestión reprogramada a la nueva fecha.')
-      } else {
-        await updateTask(task.id, data, event.id)
-        toast.success('Gestión actualizada.')
-      }
+      await updateTask(task.id, data, event.id)
+      toast.success('Gestión actualizada.')
       setTaskForm({ open: false, mode: 'create', task: null })
       load()
     } catch {
@@ -176,14 +183,12 @@ export default function EventDetailPage() {
     }
   }
 
-  async function handlePostpone(task) {
-    try {
-      await postponeTask(task.id)
-      toast.success('Gestión pospuesta al siguiente día.')
-      load()
-    } catch {
-      errorModal('Error', 'Ha ocurrido un error al posponer la gestión, inténtalo de nuevo.')
-    }
+  function moveConflictToAnotherDay() {
+    taskSaveFlow.moveToAnotherDay()
+  }
+
+  function openQuickEditHours(task) {
+    setQuick({ mode: 'hours', task, event })
   }
 
   function closeResult() {
@@ -321,8 +326,8 @@ export default function EventDetailPage() {
                   <li key={task.id}>
                     <TaskCard
                       task={task}
-                      onPostpone={handlePostpone}
-                      onReschedule={() => setTaskForm({ open: true, mode: 'reschedule', task: task })}
+                      onEditHours={openQuickEditHours}
+                      onReschedule={() => setQuick({ mode: 'date', task, event })}
                       onEdit={() => setTaskForm({ open: true, mode: 'edit', task: task })}
                       onDelete={() => setDeleteTarget({ type: 'task', id: task.id, name: task.name })}
                     />
@@ -347,9 +352,36 @@ export default function EventDetailPage() {
         open={taskForm.open}
         mode={taskForm.mode}
         event={event}
+        eventDate={event?.date}
         task={taskForm.task}
         onSave={handleTaskSave}
-        onClose={() => setTaskForm({ open: false, mode: 'create', task: null })}
+        onClose={() => {
+          setTaskForm({ open: false, mode: 'create', task: null })
+          taskSaveFlow.cancel()
+        }}
+        saveError={taskSaveFlow.error}
+        onClearSaveError={taskSaveFlow.clearError}
+        focusDateRequest={taskSaveFlow.focusDateRequest}
+      />
+      {quick && (
+        <TaskQuickEditDialogs
+          request={quick}
+          onClose={() => setQuick(null)}
+          onDone={load}
+        />
+      )}
+
+      <OverloadConflictModal
+        open={Boolean(taskSaveFlow.conflict)}
+        conflict={taskSaveFlow.conflict}
+        currentHours={taskSaveFlow.lastData?.estimated_hours ?? taskSaveFlow.lastData?.hours ?? taskForm.task?.hours ?? taskSaveFlow.target?.task.hours}
+        busy={taskSaveFlow.busy}
+        onMoveToAnotherDay={moveConflictToAnotherDay}
+        onReduceHours={taskSaveFlow.retryWithHours}
+        onCancel={() => {
+          setTaskForm({ open: false, mode: 'create', task: null })
+          taskSaveFlow.cancel()
+        }}
       />
 
       <ConfirmModal

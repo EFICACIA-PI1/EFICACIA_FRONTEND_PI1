@@ -5,10 +5,11 @@ import { useToast } from '../context/ToastContext'
 import { useAuth } from '../context/AuthContext'
 import Button from '../components/Button'
 import Modal from '../components/Modal'
+import TaskQuickEditDialogs from '../components/TaskQuickEditDialogs'
 import { inputCls } from '../utils/forms'
 import { getTodayData } from '../services/todayApi'
-import { markTaskDone, postponeTask } from '../services/tasksApi'
-import { formatHours, TASK_STATES } from '../utils/tasks'
+import { markTaskDone } from '../services/tasksApi'
+import { DEFAULT_DAILY_HOURS_LIMIT, formatHours, TASK_STATES } from '../utils/tasks'
 import { formatDate, formatDateShort } from '../utils/format'
 import usePageTitle from '../hooks/usePageTitle'
 import { EmptyState, ErrorState, LoadingState } from '../components/StateViews'
@@ -107,11 +108,12 @@ function TodayEmptyState({ onViewPlan, filtered, onClear }) {
         </Button>
       }
       className="py-24"
+      variant="today"
     />
   )
 }
 
-function TaskCard({ task, busy, onComplete, onPostpone }) {
+function TaskCard({ task, busy, onComplete, onEditHours, onReschedule }) {
   const p = PRIORITY_CONFIG[task.priority] || PRIORITY_CONFIG.upcoming
 
   return (
@@ -148,9 +150,18 @@ function TaskCard({ task, busy, onComplete, onPostpone }) {
           <Icon name="check" className="w-4 h-4" />
           Hecha
         </Button>
-        <Button size="sm" variant="neutral" disabled={busy} onClick={() => onPostpone(task.id)}>
-          <Icon name="postpone" className="w-4 h-4" />
-          Posponer
+        <Button size="sm" variant="neutral" disabled={busy} onClick={() => onEditHours(task)}>
+          <Icon name="clock" className="w-4 h-4" />
+          Modificar horas
+        </Button>
+        <Button
+          size="sm"
+          variant="neutral"
+          disabled={busy}
+          aria-label={`Reprogramar "${task.name}"`}
+          onClick={() => onReschedule(task)}
+        >
+          Reprogramar
         </Button>
         </div>
       </div>
@@ -180,7 +191,7 @@ const TASK_GROUPS = [
   },
 ]
 
-function TaskGroup({ id, title, empty, countCls, tasks, busy, onComplete, onPostpone }) {
+function TaskGroup({ id, title, empty, countCls, tasks, busy, onComplete, onEditHours, onReschedule }) {
   return (
     <section aria-labelledby={`group-${id}`}>
       <div className="flex items-center gap-2 mb-3">
@@ -200,7 +211,13 @@ function TaskGroup({ id, title, empty, countCls, tasks, busy, onComplete, onPost
         <ul className="space-y-3" role="list">
           {tasks.map((task) => (
             <li key={task.id}>
-              <TaskCard task={task} busy={busy} onComplete={onComplete} onPostpone={onPostpone} />
+              <TaskCard
+                task={task}
+                busy={busy}
+                onComplete={onComplete}
+                onEditHours={onEditHours}
+                onReschedule={onReschedule}
+              />
             </li>
           ))}
         </ul>
@@ -215,6 +232,7 @@ export default function TodayPage() {
   const toast = useToast()
   const { user } = useAuth()
   const displayName = user?.fullName?.trim().split(/\s+/)[0] || user?.username
+  const dailyHoursLimit = user?.dailyHoursLimit ?? DEFAULT_DAILY_HOURS_LIMIT
   const [searchParams, setSearchParams] = useSearchParams()
   const eventId = searchParams.get('event') || ''
   const taskState = searchParams.get('state') || ''
@@ -225,11 +243,12 @@ export default function TodayPage() {
   const [groups, setGroups] = useState({ vencidas: [], paraHoy: [], proximas: [] })
   const [conflicts, setConflicts] = useState([])
   const [modalConflict, setModalConflict] = useState(null)
+  const [quick, setQuick] = useState(null)
   const [busy, setBusy] = useState(false)
 
   const load = useCallback(async (signal) => {
     try {
-      const data = await getTodayData({ eventId, state: taskState, signal })
+      const data = await getTodayData({ eventId, state: taskState, signal, dailyHoursLimit })
       setAllEvents(data.allEvents)
       setItems(data.items)
       setGroups(data.groups)
@@ -240,7 +259,7 @@ export default function TodayPage() {
       setLoadError(err)
       setState('error')
     }
-  }, [eventId, taskState])
+  }, [dailyHoursLimit, eventId, taskState])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -282,19 +301,22 @@ export default function TodayPage() {
     load()
   }
 
-  async function handlePostpone(id) {
-    setBusy(true)
-    try {
-      await postponeTask(id)
-    } catch (err) {
-      toast.error(err.message || 'No se pudo posponer la gestión.')
-      setBusy(false)
+  function openQuickEditHours(task) {
+    const event = allEvents.find((item) => String(item.id) === String(task.eventId))
+    if (!event) {
+      toast.error('No se pudo encontrar el evento de esta gestión.')
       return
     }
-    setBusy(false)
-    setModalConflict(null)
-    toast.success('Gestión pospuesta al siguiente día.')
-    load()
+    setQuick({ mode: 'hours', task, event })
+  }
+
+  function openReschedule(task) {
+    const event = allEvents.find((item) => String(item.id) === String(task.eventId))
+    if (!event) {
+      toast.error('No se pudo encontrar el evento de esta gestión.')
+      return
+    }
+    setQuick({ mode: 'date', task, event })
   }
 
   const urgentCount = items.filter((t) => t.priority === 'urgent' || t.priority === 'vencida').length
@@ -349,7 +371,7 @@ export default function TodayPage() {
             <div className="space-y-3">
               {conflicts.map((conflict) => (
                 <div
-                  key={conflict.eventId}
+                  key={conflict.eventId ?? 'daily-overload'}
                   role="alert"
                   className="rounded-xl p-4 border border-warning-border flex flex-col sm:flex-row sm:items-center gap-4"
                   tabIndex={0}
@@ -397,7 +419,8 @@ export default function TodayPage() {
                 tasks={groups[group.key]}
                 busy={busy}
                 onComplete={handleComplete}
-                onPostpone={handlePostpone}
+                onEditHours={openQuickEditHours}
+                onReschedule={openReschedule}
               />
             ))}
           </div>
@@ -419,7 +442,7 @@ export default function TodayPage() {
               </h2>
               <p id="conflict-desc" className="text-sm mt-0.5 text-muted">
                 Tienes <strong>{modalConflict?.scheduledHours} h</strong> programadas (límite:{' '}
-                {modalConflict?.limitHours} h). Pospón al menos{' '}
+                {modalConflict?.limitHours} h). Ajusta al menos{' '}
                 <strong>{Math.ceil((overloadTotal * 10) / 10)} h</strong> de trabajo.
               </p>
             </div>
@@ -457,10 +480,10 @@ export default function TodayPage() {
                   <Button
                     size="sm"
                     variant="warning"
-                    onClick={() => handlePostpone(task.id)}
+                    onClick={() => openQuickEditHours(task)}
                     disabled={busy}
                   >
-                    Posponer
+                    Modificar horas
                   </Button>
                 </li>
               ))}
@@ -473,6 +496,14 @@ export default function TodayPage() {
           </Button>
         </div>
       </Modal>
+
+      {quick && (
+        <TaskQuickEditDialogs
+          request={quick}
+          onClose={() => setQuick(null)}
+          onDone={load}
+        />
+      )}
     </div>
   )
 }
