@@ -10,6 +10,7 @@ import { formatDate } from '../utils/format'
 import usePageTitle from '../hooks/usePageTitle'
 import Icon from '../components/Icon'
 import { EmptyState, ErrorState, LoadingState } from '../components/StateViews'
+import DailyLimitBadge from '../components/DailyLimitBadge'
 
 export default function EventsPage() {
   usePageTitle('Mis eventos')
@@ -66,10 +67,11 @@ export default function EventsPage() {
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-16 max-w-4xl mx-auto w-full">
+      <DailyLimitBadge />
       <header className="mb-8">
         <div className="flex items-end justify-between gap-4">
           <h1 className="text-2xl sm:text-3xl font-semibold text-navy font-display">Mis Eventos</h1>
-          <Button onClick={() => navigate('/crear')}>+ Nuevo evento</Button>
+          {state === 'success' && <Button onClick={() => navigate('/crear')}>+ Nuevo evento</Button>}
         </div>
         <p className="text-sm mt-1 text-muted">
           {state === 'loading' && 'Cargando…'}
