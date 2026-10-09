@@ -15,6 +15,7 @@ import { isOverloadConflict } from '../services/api'
 import { todayKey } from '../utils/dates'
 import { DEFAULT_DAILY_HOURS_LIMIT } from '../utils/tasks'
 import usePageTitle from '../hooks/usePageTitle'
+import DailyLimitBadge from '../components/DailyLimitBadge'
 
 const EVENT_TYPES = [
   'Boda',
@@ -287,6 +288,7 @@ export default function CreatePage() {
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-16 max-w-4xl mx-auto w-full">
+      <DailyLimitBadge />
       <header className="mb-8">
         <h1 className="text-2xl sm:text-3xl font-semibold text-navy font-display">Crear Evento</h1>
         <p className="text-xs text-muted mt-2"><span className="text-danger">*</span> Campo obligatorio</p>

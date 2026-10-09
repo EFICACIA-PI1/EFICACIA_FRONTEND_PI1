@@ -47,7 +47,7 @@ export function ToastProvider({ children }) {
       {children}
       <div
         aria-live="polite"
-        className="fixed z-[70] bottom-4 lg:bottom-6 right-4 left-4 sm:left-auto sm:w-96 flex flex-col gap-2 pointer-events-none"
+        className="fixed z-[70] bottom-16 right-4 left-4 sm:left-auto sm:w-96 flex flex-col gap-2 pointer-events-none"
       >
         {toasts.map((toast) => {
           const v = VARIANTS[toast.type]
