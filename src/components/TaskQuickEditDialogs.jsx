@@ -39,13 +39,18 @@ export default function TaskQuickEditDialogs({ request, onClose, onDone }) {
   const toast = useToast()
 
   const flow = useRescheduleFlow({
+    onPostponed: async () => {
+      toast.success('Tarea pospuesta. Su fecha y horas no cambiaron.')
+      await onDone?.()
+      onClose()
+    },
     onSuccess: async ({ mode, data }) => {
       if (mode === 'hours') {
         const savedHours = data?.estimated_hours ?? Number(hours)
         toast.success(`Horas estimadas actualizadas a ${formatHours(savedHours)}.`)
       } else {
         const savedDate = data?.due_date ?? selectedDate
-        toast.success(`Gestión reprogramada para el ${formatDateToast(savedDate)}.`)
+        toast.success(`Tarea reprogramada para el ${formatDateToast(savedDate)}.`)
       }
       await onDone?.()
       onClose()
@@ -140,7 +145,7 @@ export default function TaskQuickEditDialogs({ request, onClose, onDone }) {
         >
           <div className="px-6 py-5 border-b border-edge">
             <h2 id="quick-date-title" className="text-lg font-semibold text-navy font-display">
-              Reprogramar gestión
+              Reprogramar tarea
             </h2>
           </div>
           <div className="px-6 py-5 space-y-4">
@@ -192,9 +197,12 @@ export default function TaskQuickEditDialogs({ request, onClose, onDone }) {
           open={Boolean(flow.conflict)}
           conflict={flow.conflict}
           currentHours={flow.lastData?.estimated_hours ?? (Number(hours) || request.task.hours)}
+          taskName={request.task.name}
           busy={flow.busy}
           onMoveToAnotherDay={moveToAnotherDay}
           onReduceHours={flow.retryWithHours}
+          onUseSuggestedDay={flow.retryWithDate}
+          onPostpone={flow.postpone}
           onCancel={cancel}
         />
       </>
@@ -219,7 +227,7 @@ export default function TaskQuickEditDialogs({ request, onClose, onDone }) {
                   ¿Estás seguro?
                 </h2>
                 <p id="quick-confirm-description" className="text-sm text-muted leading-relaxed mt-2">
-                  ¿Seguro que quieres reprogramar la gestión para el {formatDateLong(selectedDate)}?
+                  ¿Seguro que quieres reprogramar la tarea para el {formatDateLong(selectedDate)}?
                 </p>
                 {plannedHours != null && (
                   <p className="text-sm text-muted leading-relaxed mt-2">
@@ -247,9 +255,12 @@ export default function TaskQuickEditDialogs({ request, onClose, onDone }) {
           open={Boolean(flow.conflict)}
           conflict={flow.conflict}
           currentHours={flow.lastData?.estimated_hours ?? (Number(hours) || request.task.hours)}
+          taskName={request.task.name}
           busy={flow.busy}
           onMoveToAnotherDay={moveToAnotherDay}
           onReduceHours={flow.retryWithHours}
+          onUseSuggestedDay={flow.retryWithDate}
+          onPostpone={flow.postpone}
           onCancel={cancel}
         />
       </>
@@ -315,9 +326,12 @@ export default function TaskQuickEditDialogs({ request, onClose, onDone }) {
         open={Boolean(flow.conflict)}
         conflict={flow.conflict}
         currentHours={Number(hours)}
+        taskName={request.task.name}
         busy={flow.busy}
         onMoveToAnotherDay={moveToAnotherDay}
         onReduceHours={flow.retryWithHours}
+        onUseSuggestedDay={flow.retryWithDate}
+        onPostpone={flow.postpone}
         onCancel={cancel}
       />
     </>

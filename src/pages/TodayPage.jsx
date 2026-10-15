@@ -6,9 +6,10 @@ import { useAuth } from '../context/AuthContext'
 import Button from '../components/Button'
 import Modal from '../components/Modal'
 import TaskQuickEditDialogs from '../components/TaskQuickEditDialogs'
+import TaskStateDialog from '../components/TaskStateDialog'
 import { inputCls } from '../utils/forms'
 import { getTodayData } from '../services/todayApi'
-import { markTaskDone } from '../services/tasksApi'
+import { setTaskState } from '../services/tasksApi'
 import { DEFAULT_DAILY_HOURS_LIMIT, formatHours, TASK_STATES } from '../utils/tasks'
 import { formatDate, formatDateShort } from '../utils/format'
 import usePageTitle from '../hooks/usePageTitle'
@@ -31,7 +32,7 @@ function FilterBar({ events, eventId, taskState, onChange, onClear, disabled }) 
   return (
     <form
       role="search"
-      aria-label="Filtrar gestiones"
+      aria-label="Filtrar tareas"
       onSubmit={(e) => e.preventDefault()}
       className="mb-6 flex flex-col sm:flex-row sm:items-end gap-3"
     >
@@ -88,7 +89,7 @@ function TodayEmptyState({ onViewPlan, filtered, onClear }) {
       <EmptyState
         icon="search"
         title="Sin resultados"
-        description="No hay gestiones que coincidan con los filtros seleccionados."
+        description="No hay tareas que coincidan con los filtros seleccionados."
         action={
           <Button variant="neutral" onClick={onClear}>
             Limpiar filtros
@@ -102,7 +103,7 @@ function TodayEmptyState({ onViewPlan, filtered, onClear }) {
     <EmptyState
       icon="sun"
       title="¡Día libre!"
-      description="No tienes gestiones urgentes para hoy."
+      description="No tienes tareas urgentes para hoy."
       action={
         <Button variant="neutral" onClick={onViewPlan}>
           Ver plan completo
@@ -114,7 +115,7 @@ function TodayEmptyState({ onViewPlan, filtered, onClear }) {
   )
 }
 
-function TaskCard({ task, busy, onComplete, onEditHours, onReschedule }) {
+function TaskCard({ task, busy, onComplete, onPostpone, onEditHours, onReschedule }) {
   const p = PRIORITY_CONFIG[task.priority] || PRIORITY_CONFIG.upcoming
 
   return (
@@ -137,7 +138,17 @@ function TaskCard({ task, busy, onComplete, onEditHours, onReschedule }) {
               <Icon name={p.icon} className="w-3 h-3" />
               {p.label}
             </span>
+            {task.state === 'pospuesta' && (
+              <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium border bg-warning-bg text-warning border-warning-border">
+                Pospuesta
+              </span>
+            )}
           </div>
+          {task.note && (
+            <p className="text-xs text-muted mt-2 bg-surface border border-edge rounded-lg px-3 py-2">
+              <span className="font-medium text-navy">Nota:</span> {task.note}
+            </p>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center justify-center self-center gap-2 shrink-0">
@@ -151,8 +162,10 @@ function TaskCard({ task, busy, onComplete, onEditHours, onReschedule }) {
           <Icon name="check" className="w-4 h-4" />
           Hecha
         </Button>
+        <Button size="sm" variant="neutral" disabled={busy} onClick={() => onPostpone(task)}>
+          {task.state === 'pospuesta' ? 'Pospuesta' : 'Posponer'}
+        </Button>
         <Button size="sm" variant="neutral" disabled={busy} onClick={() => onEditHours(task)}>
-          <Icon name="clock" className="w-4 h-4" />
           Modificar horas
         </Button>
         <Button
@@ -175,24 +188,24 @@ const TASK_GROUPS = [
   {
     key: 'vencidas',
     title: 'Vencidas',
-    empty: 'No tienes gestiones vencidas.',
+    empty: 'No tienes tareas vencidas.',
     countCls: 'bg-danger-bg text-danger border-danger-border',
   },
   {
     key: 'paraHoy',
     title: 'Para hoy',
-    empty: 'No tienes gestiones para hoy.',
+    empty: 'No tienes tareas para hoy.',
     countCls: 'bg-primary-soft text-primary border-primary/20',
   },
   {
     key: 'proximas',
     title: 'Próximas',
-    empty: 'No tienes gestiones próximas.',
+    empty: 'No tienes tareas próximas.',
     countCls: 'bg-neutral-bg text-neutral border-neutral-border',
   },
 ]
 
-function TaskGroup({ id, title, empty, countCls, tasks, busy, onComplete, onEditHours, onReschedule }) {
+function TaskGroup({ id, title, empty, countCls, tasks, busy, onComplete, onPostpone, onEditHours, onReschedule }) {
   return (
     <section aria-labelledby={`group-${id}`}>
       <div className="flex items-center gap-2 mb-3">
@@ -201,7 +214,7 @@ function TaskGroup({ id, title, empty, countCls, tasks, busy, onComplete, onEdit
         </h2>
         <span
           className={`inline-flex items-center justify-center min-w-6 h-6 px-2 rounded-full border text-xs font-semibold ${countCls}`}
-          aria-label={`${tasks.length} gestión${tasks.length !== 1 ? 'es' : ''}`}
+          aria-label={`${tasks.length} tarea${tasks.length !== 1 ? 'es' : ''}`}
         >
           {tasks.length}
         </span>
@@ -216,6 +229,7 @@ function TaskGroup({ id, title, empty, countCls, tasks, busy, onComplete, onEdit
                 task={task}
                 busy={busy}
                 onComplete={onComplete}
+                onPostpone={onPostpone}
                 onEditHours={onEditHours}
                 onReschedule={onReschedule}
               />
@@ -246,6 +260,8 @@ export default function TodayPage() {
   const [modalConflict, setModalConflict] = useState(null)
   const [quick, setQuick] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [postponeTask, setPostponeTask] = useState(null)
+  const [postponeError, setPostponeError] = useState('')
 
   const load = useCallback(async (signal) => {
     try {
@@ -291,21 +307,54 @@ export default function TodayPage() {
   async function handleComplete(id) {
     setBusy(true)
     try {
-      await markTaskDone(id)
+      await setTaskState(id, 'hecha')
     } catch (err) {
-      toast.error(err.message || 'No se pudo completar la gestión.')
+      toast.error(err.message || 'No pudimos marcar la tarea como hecha. Inténtalo de nuevo.')
       setBusy(false)
       return
     }
     setBusy(false)
-    toast.success('Gestión marcada como hecha.')
+    toast.success('Tarea hecha. Ya no cuenta en tus horas del día.')
+    load()
+  }
+
+  async function handleReactivate(note) {
+    setBusy(true)
+    setPostponeError('')
+    try {
+      await setTaskState(postponeTask.id, 'pendiente', note)
+    } catch (err) {
+      setPostponeError(err.message || 'No pudimos reactivar la tarea. Inténtalo de nuevo.')
+      setBusy(false)
+      return
+    }
+    setBusy(false)
+    setPostponeTask(null)
+    toast.success('Tarea reactivada. Vuelve a estar pendiente.')
+    load()
+  }
+
+  async function handlePostpone(note) {
+    const wasPostponed = postponeTask.state === 'pospuesta'
+    setBusy(true)
+    setPostponeError('')
+    try {
+      await setTaskState(postponeTask.id, 'pospuesta', note)
+    } catch (err) {
+      setPostponeError(err.message || 'No pudimos guardar el cambio. Inténtalo de nuevo.')
+      setBusy(false)
+      return
+    }
+    setBusy(false)
+    setPostponeTask(null)
+    toast.success(wasPostponed ? 'Nota actualizada.' : 'Tarea pospuesta. Sigue en tu plan hasta que la marques como hecha.')
     load()
   }
 
   function openQuickEditHours(task) {
     const event = allEvents.find((item) => String(item.id) === String(task.eventId))
     if (!event) {
-      toast.error('No se pudo encontrar el evento de esta gestión.')
+      toast.error('No se pudo encontrar el evento de esta tarea.')
       return
     }
     setQuick({ mode: 'hours', task, event })
@@ -314,7 +363,7 @@ export default function TodayPage() {
   function openReschedule(task) {
     const event = allEvents.find((item) => String(item.id) === String(task.eventId))
     if (!event) {
-      toast.error('No se pudo encontrar el evento de esta gestión.')
+      toast.error('No se pudo encontrar el evento de esta tarea.')
       return
     }
     setQuick({ mode: 'date', task, event })
@@ -333,7 +382,7 @@ export default function TodayPage() {
         {state === 'success' && (
           <p className="text-base text-muted">
             {urgentCount > 0
-              ? `Tienes ${urgentCount} gestión${urgentCount !== 1 ? 'es' : ''} urgente${urgentCount !== 1 ? 's' : ''}${conflicts.length > 0 ? ' y un conflicto de agenda' : ''}.`
+              ? `Tienes ${urgentCount} tarea${urgentCount !== 1 ? 'es' : ''} urgente${urgentCount !== 1 ? 's' : ''}${conflicts.length > 0 ? ' y un conflicto de agenda' : ''}.`
               : 'Todo bajo control. Sin urgencias pendientes hoy.'}
             <br />
             <time dateTime={new Date().toISOString().slice(0, 10)} className="text-sm text-subtle">
@@ -353,8 +402,8 @@ export default function TodayPage() {
       />
 
       <div aria-live="polite" className="sr-only">
-        {state === 'success' && `${items.length} gestiones encontradas`}
-        {state === 'empty' && 'Sin gestiones'}
+        {state === 'success' && `${items.length} tareas encontradas`}
+        {state === 'empty' && 'Sin tareas'}
       </div>
 
       {state === 'loading' && <LoadingState label="Cargando tu plan del día…" />}
@@ -385,7 +434,7 @@ export default function TodayPage() {
                         Alerta de sobrecarga · {conflict.eventName}
                       </p>
                       <p className="text-sm mt-0.5 leading-relaxed text-warning-text-dark">
-                        Tienes programadas <strong>{conflict.scheduledHours} horas</strong> de gestión
+                        Tienes programadas <strong>{conflict.scheduledHours} horas</strong> de tarea
                         para hoy, superando tu límite diario de {conflict.limitHours} horas.
                       </p>
                     </div>
@@ -405,9 +454,10 @@ export default function TodayPage() {
             >
               <Icon name="info" className="w-5 h-5 text-primary mt-0.5" />
               <p className="text-sm leading-relaxed text-navy">
-                Tus gestiones se agrupan por urgencia: primero las vencidas, luego las de hoy y después las
+                Tus tareas se agrupan por urgencia: primero las vencidas, luego las de hoy y después las
                 próximas. Dentro de cada grupo van primero las de fecha más cercana y, si coinciden, las que
-                requieren menos horas.
+                requieren menos horas. Las pospuestas siguen aquí y cuentan para tu límite diario hasta que
+                las marques como hechas.
               </p>
             </div>
 
@@ -421,6 +471,10 @@ export default function TodayPage() {
                 tasks={groups[group.key]}
                 busy={busy}
                 onComplete={handleComplete}
+                onPostpone={(task) => {
+                  setPostponeError('')
+                  setPostponeTask(task)
+                }}
                 onEditHours={openQuickEditHours}
                 onReschedule={openReschedule}
               />
@@ -460,7 +514,7 @@ export default function TodayPage() {
 
         <div className="px-6 py-4">
           <p className="text-xs font-semibold uppercase tracking-widest mb-3 text-subtle">
-            Gestiones candidatas a reprogramar
+            tareas candidatas a reprogramar
           </p>
           <ul className="space-y-3" role="list">
             {items
@@ -498,6 +552,17 @@ export default function TodayPage() {
           </Button>
         </div>
       </Modal>
+
+      {postponeTask && (
+        <TaskStateDialog
+          task={postponeTask}
+          busy={busy}
+          error={postponeError}
+          onConfirm={handlePostpone}
+          onReactivate={handleReactivate}
+          onClose={() => setPostponeTask(null)}
+        />
+      )}
 
       {quick && (
         <TaskQuickEditDialogs

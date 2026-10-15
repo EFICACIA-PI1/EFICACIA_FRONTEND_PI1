@@ -8,17 +8,18 @@ import { inputCls, inputErrorCls } from '../utils/forms'
 import { getConflictForDate } from '../services/tasksApi'
 import { todayKey } from '../utils/dates'
 import { formatDateShort, formatDateToast } from '../utils/format'
+import { formatHours } from '../utils/tasks'
 import { DEFAULT_DAILY_HOURS_LIMIT } from '../utils/tasks'
 
 const MODE_META = {
   create: {
-    title: 'Agregar gestión',
-    subtitle: 'Añade una gestión al plan logístico del evento.',
-    cta: 'Agregar gestión',
+    title: 'Agregar tarea',
+    subtitle: 'Añade una tarea al plan logístico del evento.',
+    cta: 'Agregar tarea',
   },
   edit: {
-    title: 'Editar gestión',
-    subtitle: 'Actualiza los datos de la gestión.',
+    title: 'Editar tarea',
+    subtitle: 'Actualiza los datos de la tarea.',
     cta: 'Guardar cambios',
   },
 }
@@ -47,7 +48,7 @@ function TaskFormFields({
   const dailyHoursLimit = user?.dailyHoursLimit ?? DEFAULT_DAILY_HOURS_LIMIT
   const [form, setForm] = useState(() =>
     task
-      ? { name: task.name, dueDate: task.dueDate, hours: String(task.hours), note: task.note || '' }
+      ? { name: task.name, dueDate: task.dueDate, hours: String(task.hours), note: task.description || '' }
       : emptyForm
   )
   const [errors, setErrors] = useState({})
@@ -80,16 +81,16 @@ function TaskFormFields({
 
   function validate(values) {
     const next = {}
-    if (!values.name.trim()) next.name = 'Escribe el nombre de la gestión.'
+    if (!values.name.trim()) next.name = 'Escribe el nombre de la tarea.'
     const dateChanged = mode === 'create' || values.dueDate !== task?.dueDate
     if (mode === 'create' && effectiveEventDate && effectiveEventDate < todayKey()) {
-      next.dueDate = `Este evento ya pasó (${formatDateToast(effectiveEventDate)}); no se pueden agendar gestiones nuevas.`
+      next.dueDate = `Este evento ya pasó (${formatDateToast(effectiveEventDate)}); no se pueden agendar tareas nuevas.`
     } else if (!values.dueDate) {
-      next.dueDate = 'Elige la fecha de la gestión.'
+      next.dueDate = 'Elige la fecha de la tarea.'
     } else if (!/^\d{4}-\d{2}-\d{2}$/.test(values.dueDate)) {
       next.dueDate = 'Ingresa una fecha válida.'
     } else if (dateChanged && values.dueDate < todayKey()) {
-      next.dueDate = 'La fecha de la gestión no puede ser anterior a hoy.'
+      next.dueDate = 'La fecha de la tarea no puede ser anterior a hoy.'
     } else if (dateChanged && effectiveEventDate && values.dueDate > effectiveEventDate) {
       next.dueDate = `La fecha límite no puede ser posterior a la fecha del evento (${formatDateToast(effectiveEventDate)}).`
     }
@@ -122,6 +123,7 @@ function TaskFormFields({
       excludeId: mode === 'create' ? null : task?.id,
       addHours: Number(form.hours),
       dailyHoursLimit,
+      eventDate: effectiveEventDate,
     })
     if (found) {
       setConflict(found)
@@ -134,7 +136,6 @@ function TaskFormFields({
         name: form.name.trim(),
         dueDate: form.dueDate,
         hours: Number(form.hours),
-        note: form.note.trim(),
         description: form.note.trim(),
         due_date: form.dueDate,
         estimated_hours: Number(form.hours),
@@ -144,7 +145,7 @@ function TaskFormFields({
       if (dueDateError) {
         setErrors((prev) => ({ ...prev, dueDate: dueDateError }))
       } else {
-        setSaveError(err.message || 'No se pudo guardar la gestión. Inténtalo de nuevo.')
+        setSaveError(err.message || 'No se pudo guardar la tarea. Inténtalo de nuevo.')
       }
     } finally {
       setSubmitting(false)
@@ -160,10 +161,22 @@ function TaskFormFields({
     }
   }
 
+  function applySuggestedDay() {
+    const day = conflict?.suggestedDay
+    setConflict(null)
+    if (day) setField('dueDate', day)
+  }
+
+  function applyMaxHours() {
+    const hours = conflict?.maxHours
+    setConflict(null)
+    if (hours) setField('hours', String(hours))
+  }
+
   return (
     <form onSubmit={handleSubmit} noValidate>
       <div className="px-6 py-5 border-b border-edge">
-        <h2 id="gestion-form-title" className="text-lg font-semibold text-navy">
+        <h2 id="tarea-form-title" className="text-lg font-semibold text-navy">
           {meta.title}
         </h2>
         <p className="text-xs text-muted mt-1"><span className="text-danger" aria-hidden="true">*</span> Campo obligatorio</p>
@@ -171,7 +184,7 @@ function TaskFormFields({
       </div>
 
       <div className="px-6 py-5 space-y-4">
-        <Field label="Nombre de la gestión" htmlFor="ge-name" required error={errors.name}>
+        <Field label="Nombre de la tarea" htmlFor="ge-name" required error={errors.name}>
           <input
             id="ge-name"
             type="text"
@@ -187,7 +200,7 @@ function TaskFormFields({
         </Field>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Fecha límite de la gestión" htmlFor="ge-date" required error={errors.dueDate}>
+          <Field label="Fecha límite de la tarea" htmlFor="ge-date" required error={errors.dueDate}>
             <input
               id="ge-date"
               ref={dateRef}
@@ -249,18 +262,27 @@ function TaskFormFields({
                 </p>
                 <p className="text-sm mt-1 leading-relaxed text-warning-text-dark">
                   Este cambio supera tu límite diario de <strong>{conflict.limitHours} h</strong> de
-                  gestión para el {formatDateShort(conflict.date)}. Quedarían programadas{' '}
+                  tarea para el {formatDateShort(conflict.date)}. Quedarían programadas{' '}
                   <strong>{conflict.scheduledHours} h</strong> (límite: {conflict.limitHours} h).
                 </p>
                 <p className="text-sm mt-1 text-warning-text-dark">
-                  Elige otra fecha o reduce las horas estimadas para resolverlo.
+                  {conflict.suggestedDay || conflict.maxHours >= 0.5
+                    ? 'Puedes aplicar una de estas opciones o ajustar los datos a mano.'
+                    : 'Ese día ya está completo. Elige otra fecha para resolverlo.'}
                 </p>
                 <div className="flex flex-wrap gap-2 mt-3">
-                  <Button size="sm" variant="neutral" onClick={() => resolveConflict('date')}>
+                  {conflict.suggestedDay && (
+                    <Button type="button" size="sm" variant="primary" onClick={applySuggestedDay}>
+                      Mover al {formatDateShort(conflict.suggestedDay)}
+                    </Button>
+                  )}
+                  {conflict.maxHours >= 0.5 && (
+                    <Button type="button" size="sm" variant="neutral" onClick={applyMaxHours}>
+                      Reducir a {formatHours(conflict.maxHours)}
+                    </Button>
+                  )}
+                  <Button type="button" size="sm" variant="neutral" onClick={() => resolveConflict('date')}>
                     Elegir otra fecha
-                  </Button>
-                  <Button size="sm" variant="neutral" onClick={() => resolveConflict('hours')}>
-                    Reducir horas estimadas
                   </Button>
                 </div>
               </div>
@@ -299,7 +321,7 @@ export default function TaskFormModal({
   focusDateRequest = 0,
 }) {
   return (
-    <Modal open={open} onClose={onClose} labelledBy="gestion-form-title">
+    <Modal open={open} onClose={onClose} labelledBy="tarea-form-title">
       {open && (
         <TaskFormFields
           key={`${mode}-${task?.id || 'new'}`}

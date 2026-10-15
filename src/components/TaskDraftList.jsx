@@ -31,7 +31,7 @@ export default function TaskDraftList({
       <div className="flex items-start justify-between gap-3 mb-3">
         <div>
           <h2 id="drafts-heading" className="text-sm font-semibold text-navy">
-            Gestiones del evento <span className="font-normal text-subtle">(opcional)</span>
+            Tareas del evento <span className="font-normal text-subtle">(opcional)</span>
           </h2>
           <p className="text-xs text-muted mt-0.5">
             Define desde ya el plan logístico. También podrás agregarlas después desde el detalle del evento.
@@ -49,11 +49,11 @@ export default function TaskDraftList({
               <li key={draft.key} className="rounded-xl border border-edge bg-white p-4 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-xs font-semibold uppercase tracking-wider text-subtle">
-                    Gestión {index + 1}
+                    Tarea {index + 1}
                   </p>
                   {retryDraftKey === draft.key && (
                     <Button type="button" size="sm" onClick={() => onRetryDraft(draft.key)}>
-                      Reintentar gestión
+                      Reintentar tarea
                     </Button>
                   )}
                   <Button
@@ -62,14 +62,14 @@ export default function TaskDraftList({
                     variant="subtle-danger"
                     onClick={() => onRemove(draft.key)}
                     disabled={isSaved}
-                    aria-label={`Quitar gestión ${index + 1}`}
+                    aria-label={`Quitar tarea ${index + 1}`}
                   >
                     <Icon name="trash" className="w-4 h-4" />
                     Quitar
                   </Button>
                 </div>
 
-                <Field label="Nombre de la gestión" htmlFor={id('name')} required error={rowErrors.name}>
+                <Field label="Nombre de la tarea" htmlFor={id('name')} required error={rowErrors.name}>
                   <input
                     id={id('name')}
                     type="text"
@@ -139,7 +139,7 @@ export default function TaskDraftList({
 
       <Button type="button" variant="neutral" size="sm" onClick={onAdd} className={drafts.length ? 'mt-3' : ''}>
         <Icon name="plus" className="w-4 h-4" />
-        Agregar gestión
+        Agregar tarea
       </Button>
     </section>
   )

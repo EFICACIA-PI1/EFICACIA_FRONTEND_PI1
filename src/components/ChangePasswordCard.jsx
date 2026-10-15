@@ -85,7 +85,7 @@ export default function ChangePasswordCard() {
           <h2 id="password-heading" className="text-base font-semibold text-navy font-display">
             Contraseña
           </h2>
-          <p className="text-sm text-muted mt-0.5">Cámbiala periódicamente para mantener tu cuenta segura.</p>
+          <p className="text-sm text-muted mt-0.5">Cambiar periódicamente para mantener tu cuenta segura.</p>
         </div>
         {!open && (
           <Button variant="neutral" size="sm" onClick={() => setOpen(true)}>

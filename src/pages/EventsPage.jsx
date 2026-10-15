@@ -5,7 +5,7 @@ import ProgressBar from '../components/ProgressBar'
 import ConfirmModal from '../components/ConfirmModal'
 import { useToast } from '../context/ToastContext'
 import ResultModal from '../components/ResultModal'
-import { listEventsWithProgress, deleteEvent } from '../services/eventsApi'
+import { listEvents, deleteEvent } from '../services/eventsApi'
 import { formatDate } from '../utils/format'
 import usePageTitle from '../hooks/usePageTitle'
 import Icon from '../components/Icon'
@@ -25,7 +25,7 @@ export default function EventsPage() {
 
   const load = useCallback(async (signal) => {
     try {
-      const data = await listEventsWithProgress({ signal })
+      const data = await listEvents({ signal })
       setEvents(data)
       setState(data.length === 0 ? 'empty' : 'success')
     } catch (err) {
@@ -51,7 +51,7 @@ export default function EventsPage() {
     try {
       await deleteEvent(deleteTarget.id)
       setDeleteTarget(null)
-      toast.success('Evento eliminado junto con sus gestiones.')
+      toast.success('Evento eliminado junto con sus tareas.')
       load()
     } catch {
       setDeleteTarget(null)
@@ -127,7 +127,7 @@ export default function EventsPage() {
                     <p className="truncate">{formatDate(event.date)}</p>
                   </div>
                   <div className="col-span-2 sm:col-span-1">
-                    <p className="font-medium text-gray-500 mb-0.5">Gestiones</p>
+                    <p className="font-medium text-gray-500 mb-0.5">tareas</p>
                     <p>{event.progress.done} de {event.progress.total} completadas</p>
                   </div>
                 </div>
@@ -163,7 +163,7 @@ export default function EventsPage() {
       <ConfirmModal
         open={Boolean(deleteTarget)}
         title="¿Eliminar evento?"
-        message="Esta acción eliminará el evento y todas sus gestiones. No se puede deshacer."
+        message="Esta acción eliminará el evento y todas sus tareas. No se puede deshacer."
         busy={mutating}
         onConfirm={handleDeleteConfirm}
         onClose={() => setDeleteTarget(null)}

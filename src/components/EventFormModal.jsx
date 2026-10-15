@@ -68,8 +68,14 @@ function EventFormFields({ event, onSave, onClose }) {
         date: form.date,
         location: form.location.trim(),
       })
-    } catch {
+    } catch (err) {
       setSubmitting(false)
+      // El backend rechaza la fecha si hay tareas posteriores: se muestra junto al campo.
+      const dateError = err?.fields?.event_date
+      if (dateError) {
+        setErrors((prev) => ({ ...prev, date: dateError }))
+        document.getElementById(FIELD_IDS.date)?.focus()
+      }
     }
   }
 
@@ -79,7 +85,6 @@ function EventFormFields({ event, onSave, onClose }) {
         <h2 id="event-form-title" className="text-lg font-semibold text-navy">
           Editar evento
         </h2>
-        <p className="text-xs text-muted mt-1"><span className="text-danger" aria-hidden="true">*</span> Campo obligatorio</p>
         <p className="text-sm text-muted mt-0.5">Actualiza la información básica del evento.</p>
       </div>
 

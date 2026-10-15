@@ -8,19 +8,19 @@ import Icon from '../components/Icon'
 import { useToast } from '../context/ToastContext'
 import ResultModal from '../components/ResultModal'
 import TaskFormModal from '../components/TaskFormModal'
-import TaskQuickEditDialogs from '../components/TaskQuickEditDialogs'
 import OverloadConflictModal from '../components/OverloadConflictModal'
+import TaskStateDialog from '../components/TaskStateDialog'
 import EventFormModal from '../components/EventFormModal'
 import { getEventDetail, updateEvent, deleteEvent } from '../services/eventsApi'
 import { eventTypeLabel } from '../utils/events'
-import { updateTask, deleteTask } from '../services/tasksApi'
+import { deleteTask, setTaskState } from '../services/tasksApi'
 import { formatHours, getTaskStatus } from '../utils/tasks'
 import { formatDate, formatDateShort } from '../utils/format'
 import usePageTitle from '../hooks/usePageTitle'
 import useRescheduleFlow from '../hooks/useRescheduleFlow'
 import { ErrorState, LoadingState } from '../components/StateViews'
 
-function TaskCard({ task, onEditHours, onReschedule, onEdit, onDelete }) {
+function TaskCard({ task, busy, onDone, onPostpone, onReopen, onEdit, onDelete }) {
   const status = getTaskStatus(task)
   const dotClass =
     status === 'done'
@@ -42,31 +42,52 @@ function TaskCard({ task, onEditHours, onReschedule, onEdit, onDelete }) {
               <span className="inline-flex items-center gap-1"><Icon name="clock" className="w-4 h-4" />{formatHours(task.hours)}</span>
               <span className="inline-flex items-center gap-1"><Icon name="calendar" className="w-4 h-4" />{formatDateShort(task.dueDate)}</span>
             </div>
+            {task.description && (
+              <p className="text-xs text-muted mt-2">{task.description}</p>
+            )}
             {task.note && (
               <p className="text-xs text-muted mt-2 bg-surface border border-edge rounded-lg px-3 py-2">
-                {task.note}
+                <span className="font-medium text-navy">Nota:</span> {task.note}
               </p>
             )}
           </div>
         </div>
 
         <div className="flex items-center gap-1 flex-wrap justify-end shrink-0">
-          <Button size="sm" variant="neutral" onClick={() => onEditHours(task)}>
-            Modificar horas
-          </Button>
-          <Button size="sm" variant="neutral" onClick={() => onReschedule(task)}>
-            Reprogramar
-          </Button>
-          <Button size="sm" variant="neutral" onClick={() => onEdit(task)}>
-            Editar
+          {task.done ? (
+            <Button size="sm" variant="neutral" disabled={busy} onClick={() => onReopen(task)}>
+              Reabrir
+            </Button>
+          ) : (
+            <>
+              <Button size="sm" variant="soft" disabled={busy} onClick={() => onDone(task)}>
+                <Icon name="check" className="w-4 h-4" />
+                Hecha
+              </Button>
+              <Button size="sm" variant="neutral" disabled={busy} onClick={() => onPostpone(task)}>
+                {task.state === 'pospuesta' ? 'Pospuesta' : 'Posponer'}
+              </Button>
+            </>
+          )}
+          <Button
+            variant="neutral"
+            className="!px-0 w-9 h-9"
+            disabled={busy}
+            title="Editar fecha, horas y datos"
+            aria-label={`Editar "${task.name}"`}
+            onClick={() => onEdit(task)}
+          >
+            <Icon name="edit" className="w-5 h-5" />
           </Button>
           <Button
-            size="sm"
             variant="subtle-danger"
+            className="!px-0 w-9 h-9"
+            disabled={busy}
+            title="Eliminar"
+            aria-label={`Eliminar "${task.name}"`}
             onClick={() => onDelete(task)}
-            aria-label={`Eliminar gestión "${task.name}"`}
           >
-            Eliminar
+            <Icon name="trash" className="w-5 h-5" />
           </Button>
         </div>
       </div>
@@ -86,11 +107,12 @@ export default function EventDetailPage() {
   const [progress, setProgress] = useState({ total: 0, done: 0, percent: 0 })
 
   const [taskForm, setTaskForm] = useState({ open: false, mode: 'create', task: null })
-  const [quick, setQuick] = useState(null)
   const [eventFormOpen, setEventFormOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [mutating, setMutating] = useState(false)
   const [result, setResult] = useState(null)
+  const [postponeTask, setPostponeTask] = useState(null)
+  const [postponeError, setPostponeError] = useState('')
 
   const load = useCallback(async (signal) => {
     try {
@@ -117,9 +139,14 @@ export default function EventDetailPage() {
   }, [load])
 
   const taskSaveFlow = useRescheduleFlow({
-    onSuccess: () => {
+    onPostponed: () => {
       setTaskForm({ open: false, mode: 'create', task: null })
-      toast.success('Gestión agregada al plan logístico.')
+      toast.success('Tarea pospuesta. Su fecha y horas no cambiaron.')
+      load()
+    },
+    onSuccess: ({ mode }) => {
+      setTaskForm({ open: false, mode: 'create', task: null })
+      toast.success(mode === 'create' ? 'Tarea agregada al plan logístico.' : 'Tarea actualizada.')
       load()
     },
   })
@@ -135,6 +162,8 @@ export default function EventDetailPage() {
       toast.success('Evento actualizado.')
       load()
     } catch (err) {
+      // Fecha rechazada por tareas posteriores: el formulario sigue abierto y muestra el motivo.
+      if (err.fields?.event_date) throw err
       setEventFormOpen(false)
       errorModal('Error', err.message || 'Ha ocurrido un error al guardar el evento, inténtalo de nuevo.')
     }
@@ -142,17 +171,12 @@ export default function EventDetailPage() {
 
   async function handleTaskSave(data) {
     const { mode, task } = taskForm
-    if (mode === 'create') {
-      await taskSaveFlow.save({ mode, event, task }, data)
-      return
-    }
-    if (!event?.id) {
+    if (mode !== 'create' && !event?.id) {
       throw new Error('Evento no encontrado')
     }
-    await updateTask(task.id, data, event.id)
-    toast.success('Gestión actualizada.')
-    setTaskForm({ open: false, mode: 'create', task: null })
-    load()
+    // Crear y editar comparten el flujo: un 409 abre el modal de sobrecarga con sus salidas
+    // y los 400 del backend (fecha, jerarquía) se muestran en el formulario.
+    await taskSaveFlow.save({ mode, event, task }, data)
   }
 
   async function handleDeleteConfirm() {
@@ -161,11 +185,11 @@ export default function EventDetailPage() {
       if (deleteTarget.type === 'task') {
         await deleteTask(deleteTarget.id)
         setDeleteTarget(null)
-        toast.success('Gestión eliminada.')
+        toast.success('Tarea eliminada.')
       } else {
         await deleteEvent(event.id)
         setDeleteTarget(null)
-        toast.success('Evento eliminado junto con sus gestiones.')
+        toast.success('Evento eliminado junto con sus tareas.')
         navigate('/eventos', { replace: true })
         return
       }
@@ -182,8 +206,23 @@ export default function EventDetailPage() {
     taskSaveFlow.moveToAnotherDay()
   }
 
-  function openQuickEditHours(task) {
-    setQuick({ mode: 'hours', task, event })
+  async function changeTaskState(task, state, note, successMessage) {
+    setMutating(true)
+    try {
+      await setTaskState(task.id, state, note)
+    } catch (err) {
+      if (state === 'pospuesta') {
+        setPostponeError(err.message || 'No pudimos guardar el cambio. Inténtalo de nuevo.')
+      } else {
+        toast.error(err.message || 'No pudimos actualizar la tarea. Inténtalo de nuevo.')
+      }
+      return
+    } finally {
+      setMutating(false)
+    }
+    setPostponeTask(null)
+    toast.success(successMessage)
+    load()
   }
 
   function closeResult() {
@@ -260,7 +299,7 @@ export default function EventDetailPage() {
                 <p className="text-sm font-medium text-gray-700">Progreso de preparación</p>
                 {progress.percent === 100 ? (
                   <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-success-bg text-success border border-success-border font-medium">
-                    <Icon name="check" className="w-4 h-4 inline" /> Gestión completa
+                    <Icon name="check" className="w-4 h-4 inline" /> Tarea completa
                   </span>
                 ) : (
                   <span
@@ -273,8 +312,8 @@ export default function EventDetailPage() {
               </div>
               <p className="text-xs text-muted mb-3">
                 {progress.total === 0
-                  ? 'Todavía no hay gestiones registradas en este evento.'
-                  : `${progress.done} de ${progress.total} gestiones completadas`}
+                  ? 'Todavía no hay tareas registradas en este evento.'
+                  : `${progress.done} de ${progress.total} tareas completadas`}
               </p>
               <ProgressBar
                 percent={progress.percent}
@@ -284,21 +323,21 @@ export default function EventDetailPage() {
             </section>
           </header>
 
-          <section aria-labelledby="gestiones-heading">
+          <section aria-labelledby="tareas-heading">
             <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
               <div>
-                <h2 id="gestiones-heading" className="text-xs font-semibold uppercase tracking-widest text-subtle">
-                  Gestiones logísticas
+                <h2 id="tareas-heading" className="text-xs font-semibold uppercase tracking-widest text-subtle">
+                  tareas logísticas
                 </h2>
                 <p className="text-sm text-muted mt-0.5">
                   {tasks.length === 0
                     ? 'Aún no has definido tu plan de trabajo logístico.'
-                    : `${tasks.length} gestión${tasks.length !== 1 ? 'es' : ''} en el plan`}
+                    : `${tasks.length} tarea${tasks.length !== 1 ? 'es' : ''} en el plan`}
                 </p>
               </div>
               {tasks.length > 0 && (
                 <Button onClick={() => setTaskForm({ open: true, mode: 'create', task: null })}>
-                  + Agregar gestión
+                  + Agregar tarea
                 </Button>
               )}
             </div>
@@ -306,13 +345,13 @@ export default function EventDetailPage() {
             {tasks.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center bg-white rounded-xl border border-dashed border-edge">
                 <span className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-primary/10 text-primary mb-4"><Icon name="book" className="w-7 h-7" /></span>
-                <h3 className="text-lg font-semibold text-gray-800 mb-1.5">¿Deseas agregar tu primera gestión?</h3>
+                <h3 className="text-lg font-semibold text-gray-800 mb-1.5">¿Deseas agregar tu primera tarea?</h3>
                 <p className="text-sm text-muted max-w-sm mb-6">
-                  Reserva de salón, invitaciones, catering y proveedores son ejemplos de gestiones
+                  Reserva de salón, invitaciones, catering y proveedores son ejemplos de tareas
                   que puedes planear aquí.
                 </p>
                 <Button onClick={() => setTaskForm({ open: true, mode: 'create', task: null })}>
-                  + Agregar gestión
+                  + Agregar tarea
                 </Button>
               </div>
             ) : (
@@ -321,8 +360,13 @@ export default function EventDetailPage() {
                   <li key={task.id}>
                     <TaskCard
                       task={task}
-                      onEditHours={openQuickEditHours}
-                      onReschedule={() => setQuick({ mode: 'date', task, event })}
+                      busy={mutating}
+                      onDone={(item) => changeTaskState(item, 'hecha', undefined, 'Tarea hecha. Tu progreso se actualizó.')}
+                      onReopen={(item) => changeTaskState(item, 'pendiente', undefined, 'Tarea reabierta. Vuelve a estar pendiente.')}
+                      onPostpone={(item) => {
+                        setPostponeError('')
+                        setPostponeTask(item)
+                      }}
                       onEdit={() => setTaskForm({ open: true, mode: 'edit', task: task })}
                       onDelete={() => setDeleteTarget({ type: 'task', id: task.id, name: task.name })}
                     />
@@ -358,11 +402,25 @@ export default function EventDetailPage() {
         onClearSaveError={taskSaveFlow.clearError}
         focusDateRequest={taskSaveFlow.focusDateRequest}
       />
-      {quick && (
-        <TaskQuickEditDialogs
-          request={quick}
-          onClose={() => setQuick(null)}
-          onDone={load}
+      {postponeTask && (
+        <TaskStateDialog
+          task={postponeTask}
+          busy={mutating}
+          error={postponeError}
+          onConfirm={(note) =>
+            changeTaskState(
+              postponeTask,
+              'pospuesta',
+              note,
+              postponeTask.state === 'pospuesta'
+                ? 'Nota actualizada.'
+                : 'Tarea pospuesta. Sigue en tu plan hasta que la marques como hecha.'
+            )
+          }
+          onReactivate={(note) =>
+            changeTaskState(postponeTask, 'pendiente', note, 'Tarea reactivada. Vuelve a estar pendiente.')
+          }
+          onClose={() => setPostponeTask(null)}
         />
       )}
 
@@ -370,9 +428,12 @@ export default function EventDetailPage() {
         open={Boolean(taskSaveFlow.conflict)}
         conflict={taskSaveFlow.conflict}
         currentHours={taskSaveFlow.lastData?.estimated_hours ?? taskSaveFlow.lastData?.hours ?? taskForm.task?.hours ?? taskSaveFlow.target?.task.hours}
+        taskName={taskSaveFlow.target?.task?.name || taskSaveFlow.lastData?.name}
         busy={taskSaveFlow.busy}
         onMoveToAnotherDay={moveConflictToAnotherDay}
         onReduceHours={taskSaveFlow.retryWithHours}
+        onUseSuggestedDay={taskSaveFlow.retryWithDate}
+        onPostpone={taskSaveFlow.target?.mode === 'edit' ? taskSaveFlow.postpone : undefined}
         onCancel={() => {
           setTaskForm({ open: false, mode: 'create', task: null })
           taskSaveFlow.cancel()
@@ -381,11 +442,11 @@ export default function EventDetailPage() {
 
       <ConfirmModal
         open={Boolean(deleteTarget)}
-        title={deleteTarget?.type === 'evento' ? '¿Eliminar evento?' : '¿Eliminar gestión?'}
+        title={deleteTarget?.type === 'evento' ? '¿Eliminar evento?' : '¿Eliminar tarea?'}
         message={
           deleteTarget?.type === 'evento'
-            ? 'Esta acción eliminará el evento y todas sus gestiones. No se puede deshacer.'
-            : "Esta acción eliminará la gestión y su información. No se puede deshacer."
+            ? 'Esta acción eliminará el evento y todas sus tareas. No se puede deshacer.'
+            : "Esta acción eliminará la tarea y su información. No se puede deshacer."
         }
         busy={mutating}
         onConfirm={handleDeleteConfirm}
