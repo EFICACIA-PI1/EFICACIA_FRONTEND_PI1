@@ -3,7 +3,7 @@ import Modal from './Modal'
 import Button from './Button'
 import Field from './Field'
 import { inputCls } from '../utils/forms'
-import { formatDateLong } from '../utils/format'
+import { formatDateLong, formatDateShort } from '../utils/format'
 import { formatHours } from '../utils/tasks'
 
 export default function OverloadConflictModal({
@@ -13,6 +13,8 @@ export default function OverloadConflictModal({
   busy = false,
   onMoveToAnotherDay,
   onReduceHours,
+  onUseSuggestedDay,
+  onPostpone,
   onCancel,
 }) {
   const cancelRef = useRef(null)
@@ -20,6 +22,7 @@ export default function OverloadConflictModal({
   const reduceRef = useRef(null)
   const maxHours = Number(conflict?.max_hours_for_this_task ?? 0)
   const limitHours = Number(conflict?.limit_hours ?? 0)
+  const suggestedDay = conflict?.suggested_day || null
   const taskExceedsLimit = Number(currentHours) > limitHours
   const initialFocusRef = taskExceedsLimit && maxHours >= 0.1
     ? reduceRef
@@ -48,7 +51,7 @@ export default function OverloadConflictModal({
             Ese día quedaría sobrecargado
           </h2>
           <p id="overload-description" className="text-sm text-warning-text-dark leading-relaxed mt-2">
-            Quedarías con <strong>{formatHours(conflict?.planned_hours)}</strong> planificadas
+            Quedarías con <strong>{formatHours(conflict?.planned_hours)}</strong> de tarea planificadas
             {' '}(límite <strong>{formatHours(limitHours)}</strong>) el{' '}
             <strong>{formatDateLong(conflict?.date)}</strong>. Te pasas por{' '}
             <strong>{formatHours(conflict?.excess_hours)}</strong>.
@@ -58,7 +61,12 @@ export default function OverloadConflictModal({
         <div className="mt-4">
           {taskExceedsLimit && (
             <p className="text-sm text-warning-text-dark mb-3" role="note">
-              Esta gestión sola supera tu límite diario de {formatHours(limitHours)}. Reduce sus horas para poder agendarla.
+              Esta tarea sola supera tu límite diario de {formatHours(limitHours)}. Reduce sus horas para poder agendarla.
+            </p>
+          )}
+          {suggestedDay && onUseSuggestedDay && (
+            <p className="text-sm text-navy mb-3" role="note">
+              El <strong>{formatDateLong(suggestedDay)}</strong> es el primer día con espacio para esta tarea.
             </p>
           )}
           {maxHours < 0.1 ? (
@@ -69,7 +77,7 @@ export default function OverloadConflictModal({
             <Field
               label="Horas estimadas"
               htmlFor="overload-hours"
-              hint={`Para que quepa, esta gestión puede tener hasta ${formatHours(maxHours)}.`}
+              hint={`Para que quepa, esta tarea puede tener hasta ${formatHours(maxHours)}.`}
             >
               <input
                 id="overload-hours"
@@ -90,6 +98,21 @@ export default function OverloadConflictModal({
           <Button ref={cancelRef} variant="neutral" onClick={onCancel} disabled={busy}>
             Cancelar
           </Button>
+          {suggestedDay && onUseSuggestedDay && (
+            <Button
+              variant={taskExceedsLimit ? 'neutral' : 'primary'}
+              onClick={() => onUseSuggestedDay(suggestedDay)}
+              disabled={busy}
+              loading={busy}
+            >
+              Mover al {formatDateShort(suggestedDay)}
+            </Button>
+          )}
+          {onPostpone && (
+            <Button variant="neutral" onClick={onPostpone} disabled={busy}>
+              Posponer tarea
+            </Button>
+          )}
           <Button
             ref={moveRef}
             variant="neutral"

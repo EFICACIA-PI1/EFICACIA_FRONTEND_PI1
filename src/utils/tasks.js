@@ -16,6 +16,7 @@ export function formatHours(hours) {
 
 export function getTaskStatus(task, today = todayKey()) {
   if (task.done) return 'done'
+  if (task.state === 'pospuesta') return 'postponed'
   if (task.dueDate < today) return 'overdue'
   return 'pending'
 }

@@ -122,12 +122,12 @@ export default function CreatePage() {
   function finishDraftCreation(event, failedCount) {
     if (failedCount > 0) {
       toast.error(
-        `El evento se creó, pero ${failedCount} gestión${failedCount !== 1 ? 'es' : ''} no se pudo guardar. Agrégala${failedCount !== 1 ? 's' : ''} desde el detalle.`
+        `El evento se creó, pero ${failedCount} tarea${failedCount !== 1 ? 'es' : ''} no se pudo guardar. Agrégala${failedCount !== 1 ? 's' : ''} desde el detalle.`
       )
     } else if (drafts.length > 0) {
-      toast.success(`Evento creado con ${drafts.length} gestión${drafts.length !== 1 ? 'es' : ''}.`)
+      toast.success(`Evento creado con ${drafts.length} tarea${drafts.length !== 1 ? 'es' : ''}.`)
     } else {
-      toast.success('Evento creado. Ahora agrega sus gestiones.')
+      toast.success('Evento creado. Ahora agrega sus tareas.')
     }
     navigate(`/evento/${event.id}`)
   }
@@ -155,7 +155,7 @@ export default function CreatePage() {
         name: draft.name,
         dueDate: draft.dueDate,
         hours: Number(draft.hours),
-        note: draft.note,
+        description: draft.note,
       })
       setSavedDraftKeys((keys) => [...keys, draft.key])
       advanceDraftConflict(failedDraftCount)
@@ -245,7 +245,7 @@ export default function CreatePage() {
             name: draft.name,
             dueDate: draft.dueDate,
             hours: Number(draft.hours),
-            note: draft.note,
+            description: draft.note,
           })
         )
       )
@@ -291,7 +291,6 @@ export default function CreatePage() {
       <DailyLimitBadge />
       <header className="mb-8">
         <h1 className="text-2xl sm:text-3xl font-semibold text-navy font-display">Crear Evento</h1>
-        <p className="text-xs text-muted mt-2"><span className="text-danger">*</span> Campo obligatorio</p>
         <p className="text-sm mt-1 text-muted">
           Completa los datos básicos para empezar a gestionar tu evento.
         </p>
@@ -407,9 +406,7 @@ export default function CreatePage() {
 
         <div className="pt-2 flex flex-col sm:flex-row gap-3">
           <Button type="submit" loading={submitting} disabled={Boolean(createdEvent)} className="sm:w-auto">
-            {drafts.length > 0
-              ? `Crear evento y ${drafts.length} gestión${drafts.length !== 1 ? 'es' : ''}`
-              : 'Crear evento'}
+            {'Crear evento'}
           </Button>
           <Button type="button" variant="neutral" onClick={() => navigate('/eventos')} disabled={submitting}>
             Cancelar
