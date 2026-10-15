@@ -6,8 +6,11 @@ import { inputCls } from '../utils/forms'
 
 const NOTE_MAX = 500
 
-/** Pide la nota opcional al posponer una tarea (o al editar la nota de una pospuesta). */
-export default function TaskStateDialog({ task, busy = false, error = '', onConfirm, onClose }) {
+/**
+ * Pide la nota opcional al posponer una tarea. Si ya está pospuesta, permite editar la nota
+ * o reactivarla (volver a pendiente) conservando la nota que quede escrita.
+ */
+export default function TaskStateDialog({ task, busy = false, error = '', onConfirm, onReactivate, onClose }) {
   const [note, setNote] = useState(task.note || '')
   const noteRef = useRef(null)
   const editing = task.state === 'pospuesta'
@@ -55,13 +58,22 @@ export default function TaskStateDialog({ task, busy = false, error = '', onConf
           </Field>
         </div>
 
-        <div className="mt-5 flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
-          <Button type="button" variant="neutral" onClick={onClose} disabled={busy}>
-            Cancelar
-          </Button>
-          <Button type="submit" loading={busy}>
-            {editing ? 'Guardar nota' : 'Posponer'}
-          </Button>
+        <div className="mt-5 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2">
+          {editing && onReactivate ? (
+            <Button type="button" variant="outline" onClick={() => onReactivate(note.trim())} disabled={busy}>
+              Reactivar tarea
+            </Button>
+          ) : (
+            <span />
+          )}
+          <div className="flex flex-col-reverse sm:flex-row gap-2">
+            <Button type="button" variant="neutral" onClick={onClose} disabled={busy}>
+              Cancelar
+            </Button>
+            <Button type="submit" loading={busy}>
+              {editing ? 'Guardar nota' : 'Posponer'}
+            </Button>
+          </div>
         </div>
       </form>
     </Modal>

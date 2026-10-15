@@ -197,6 +197,7 @@ export default function TaskQuickEditDialogs({ request, onClose, onDone }) {
           open={Boolean(flow.conflict)}
           conflict={flow.conflict}
           currentHours={flow.lastData?.estimated_hours ?? (Number(hours) || request.task.hours)}
+          taskName={request.task.name}
           busy={flow.busy}
           onMoveToAnotherDay={moveToAnotherDay}
           onReduceHours={flow.retryWithHours}
@@ -254,6 +255,7 @@ export default function TaskQuickEditDialogs({ request, onClose, onDone }) {
           open={Boolean(flow.conflict)}
           conflict={flow.conflict}
           currentHours={flow.lastData?.estimated_hours ?? (Number(hours) || request.task.hours)}
+          taskName={request.task.name}
           busy={flow.busy}
           onMoveToAnotherDay={moveToAnotherDay}
           onReduceHours={flow.retryWithHours}
@@ -324,6 +326,7 @@ export default function TaskQuickEditDialogs({ request, onClose, onDone }) {
         open={Boolean(flow.conflict)}
         conflict={flow.conflict}
         currentHours={Number(hours)}
+        taskName={request.task.name}
         busy={flow.busy}
         onMoveToAnotherDay={moveToAnotherDay}
         onReduceHours={flow.retryWithHours}

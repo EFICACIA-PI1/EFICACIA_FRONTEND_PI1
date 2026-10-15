@@ -21,7 +21,6 @@ function showModal({ icon, title, message, autoClose = false }) {
     confirmButtonText: 'Aceptar',
     confirmButtonColor: primaryColor(),
     timer: autoClose ? SUCCESS_AUTOCLOSE_MS : undefined,
-    timerProgressBar: autoClose,
     customClass: { popup: 'rounded-2xl' },
   })
 }

@@ -8,7 +8,6 @@ import Icon from '../components/Icon'
 import { useToast } from '../context/ToastContext'
 import ResultModal from '../components/ResultModal'
 import TaskFormModal from '../components/TaskFormModal'
-import TaskQuickEditDialogs from '../components/TaskQuickEditDialogs'
 import OverloadConflictModal from '../components/OverloadConflictModal'
 import TaskStateDialog from '../components/TaskStateDialog'
 import EventFormModal from '../components/EventFormModal'
@@ -21,7 +20,7 @@ import usePageTitle from '../hooks/usePageTitle'
 import useRescheduleFlow from '../hooks/useRescheduleFlow'
 import { ErrorState, LoadingState } from '../components/StateViews'
 
-function TaskCard({ task, busy, onDone, onPostpone, onReopen, onEditHours, onReschedule, onEdit, onDelete }) {
+function TaskCard({ task, busy, onDone, onPostpone, onReopen, onEdit, onDelete }) {
   const status = getTaskStatus(task)
   const dotClass =
     status === 'done'
@@ -66,26 +65,29 @@ function TaskCard({ task, busy, onDone, onPostpone, onReopen, onEditHours, onRes
                 Hecha
               </Button>
               <Button size="sm" variant="neutral" disabled={busy} onClick={() => onPostpone(task)}>
-                {task.state === 'pospuesta' ? 'Editar nota' : 'Posponer'}
+                {task.state === 'pospuesta' ? 'Pospuesta' : 'Posponer'}
               </Button>
             </>
           )}
-          <Button size="sm" variant="neutral" onClick={() => onEditHours(task)}>
-            Modificar horas
-          </Button>
-          <Button size="sm" variant="neutral" onClick={() => onReschedule(task)}>
-            Reprogramar
-          </Button>
-          <Button size="sm" variant="neutral" onClick={() => onEdit(task)}>
-            Editar
+          <Button
+            variant="neutral"
+            className="!px-0 w-9 h-9"
+            disabled={busy}
+            title="Editar fecha, horas y datos"
+            aria-label={`Editar "${task.name}"`}
+            onClick={() => onEdit(task)}
+          >
+            <Icon name="edit" className="w-5 h-5" />
           </Button>
           <Button
-            size="sm"
             variant="subtle-danger"
+            className="!px-0 w-9 h-9"
+            disabled={busy}
+            title="Eliminar"
+            aria-label={`Eliminar "${task.name}"`}
             onClick={() => onDelete(task)}
-            aria-label={`Eliminar tarea "${task.name}"`}
           >
-            Eliminar
+            <Icon name="trash" className="w-5 h-5" />
           </Button>
         </div>
       </div>
@@ -105,7 +107,6 @@ export default function EventDetailPage() {
   const [progress, setProgress] = useState({ total: 0, done: 0, percent: 0 })
 
   const [taskForm, setTaskForm] = useState({ open: false, mode: 'create', task: null })
-  const [quick, setQuick] = useState(null)
   const [eventFormOpen, setEventFormOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [mutating, setMutating] = useState(false)
@@ -222,10 +223,6 @@ export default function EventDetailPage() {
     setPostponeTask(null)
     toast.success(successMessage)
     load()
-  }
-
-  function openQuickEditHours(task) {
-    setQuick({ mode: 'hours', task, event })
   }
 
   function closeResult() {
@@ -370,8 +367,6 @@ export default function EventDetailPage() {
                         setPostponeError('')
                         setPostponeTask(item)
                       }}
-                      onEditHours={openQuickEditHours}
-                      onReschedule={() => setQuick({ mode: 'date', task, event })}
                       onEdit={() => setTaskForm({ open: true, mode: 'edit', task: task })}
                       onDelete={() => setDeleteTarget({ type: 'task', id: task.id, name: task.name })}
                     />
@@ -422,15 +417,10 @@ export default function EventDetailPage() {
                 : 'Tarea pospuesta. Sigue en tu plan hasta que la marques como hecha.'
             )
           }
+          onReactivate={(note) =>
+            changeTaskState(postponeTask, 'pendiente', note, 'Tarea reactivada. Vuelve a estar pendiente.')
+          }
           onClose={() => setPostponeTask(null)}
-        />
-      )}
-
-      {quick && (
-        <TaskQuickEditDialogs
-          request={quick}
-          onClose={() => setQuick(null)}
-          onDone={load}
         />
       )}
 
@@ -438,6 +428,7 @@ export default function EventDetailPage() {
         open={Boolean(taskSaveFlow.conflict)}
         conflict={taskSaveFlow.conflict}
         currentHours={taskSaveFlow.lastData?.estimated_hours ?? taskSaveFlow.lastData?.hours ?? taskForm.task?.hours ?? taskSaveFlow.target?.task.hours}
+        taskName={taskSaveFlow.target?.task?.name || taskSaveFlow.lastData?.name}
         busy={taskSaveFlow.busy}
         onMoveToAnotherDay={moveConflictToAnotherDay}
         onReduceHours={taskSaveFlow.retryWithHours}

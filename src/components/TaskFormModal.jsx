@@ -8,6 +8,7 @@ import { inputCls, inputErrorCls } from '../utils/forms'
 import { getConflictForDate } from '../services/tasksApi'
 import { todayKey } from '../utils/dates'
 import { formatDateShort, formatDateToast } from '../utils/format'
+import { formatHours } from '../utils/tasks'
 import { DEFAULT_DAILY_HOURS_LIMIT } from '../utils/tasks'
 
 const MODE_META = {
@@ -122,6 +123,7 @@ function TaskFormFields({
       excludeId: mode === 'create' ? null : task?.id,
       addHours: Number(form.hours),
       dailyHoursLimit,
+      eventDate: effectiveEventDate,
     })
     if (found) {
       setConflict(found)
@@ -157,6 +159,18 @@ function TaskFormFields({
     } else if (target === 'hours') {
       hoursRef.current?.focus()
     }
+  }
+
+  function applySuggestedDay() {
+    const day = conflict?.suggestedDay
+    setConflict(null)
+    if (day) setField('dueDate', day)
+  }
+
+  function applyMaxHours() {
+    const hours = conflict?.maxHours
+    setConflict(null)
+    if (hours) setField('hours', String(hours))
   }
 
   return (
@@ -252,14 +266,23 @@ function TaskFormFields({
                   <strong>{conflict.scheduledHours} h</strong> (límite: {conflict.limitHours} h).
                 </p>
                 <p className="text-sm mt-1 text-warning-text-dark">
-                  Elige otra fecha o reduce las horas estimadas para resolverlo.
+                  {conflict.suggestedDay || conflict.maxHours >= 0.5
+                    ? 'Puedes aplicar una de estas opciones o ajustar los datos a mano.'
+                    : 'Ese día ya está completo. Elige otra fecha para resolverlo.'}
                 </p>
                 <div className="flex flex-wrap gap-2 mt-3">
-                  <Button size="sm" variant="neutral" onClick={() => resolveConflict('date')}>
+                  {conflict.suggestedDay && (
+                    <Button type="button" size="sm" variant="primary" onClick={applySuggestedDay}>
+                      Mover al {formatDateShort(conflict.suggestedDay)}
+                    </Button>
+                  )}
+                  {conflict.maxHours >= 0.5 && (
+                    <Button type="button" size="sm" variant="neutral" onClick={applyMaxHours}>
+                      Reducir a {formatHours(conflict.maxHours)}
+                    </Button>
+                  )}
+                  <Button type="button" size="sm" variant="neutral" onClick={() => resolveConflict('date')}>
                     Elegir otra fecha
-                  </Button>
-                  <Button size="sm" variant="neutral" onClick={() => resolveConflict('hours')}>
-                    Reducir horas estimadas
                   </Button>
                 </div>
               </div>

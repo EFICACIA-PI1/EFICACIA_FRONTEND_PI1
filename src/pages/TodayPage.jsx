@@ -163,10 +163,9 @@ function TaskCard({ task, busy, onComplete, onPostpone, onEditHours, onReschedul
           Hecha
         </Button>
         <Button size="sm" variant="neutral" disabled={busy} onClick={() => onPostpone(task)}>
-          {task.state === 'pospuesta' ? 'Editar nota' : 'Posponer'}
+          {task.state === 'pospuesta' ? 'Pospuesta' : 'Posponer'}
         </Button>
         <Button size="sm" variant="neutral" disabled={busy} onClick={() => onEditHours(task)}>
-          <Icon name="clock" className="w-4 h-4" />
           Modificar horas
         </Button>
         <Button
@@ -316,6 +315,22 @@ export default function TodayPage() {
     }
     setBusy(false)
     toast.success('Tarea hecha. Ya no cuenta en tus horas del día.')
+    load()
+  }
+
+  async function handleReactivate(note) {
+    setBusy(true)
+    setPostponeError('')
+    try {
+      await setTaskState(postponeTask.id, 'pendiente', note)
+    } catch (err) {
+      setPostponeError(err.message || 'No pudimos reactivar la tarea. Inténtalo de nuevo.')
+      setBusy(false)
+      return
+    }
+    setBusy(false)
+    setPostponeTask(null)
+    toast.success('Tarea reactivada. Vuelve a estar pendiente.')
     load()
   }
 
@@ -544,6 +559,7 @@ export default function TodayPage() {
           busy={busy}
           error={postponeError}
           onConfirm={handlePostpone}
+          onReactivate={handleReactivate}
           onClose={() => setPostponeTask(null)}
         />
       )}
