@@ -2,11 +2,7 @@ import { apiFetch } from './api'
 import { listEvents } from './eventsApi'
 import { normalizeTask } from './mappers'
 import { todayKey } from '../utils/dates'
-import {
-  compareByDueDateThenHours,
-  computeProgress,
-  DEFAULT_DAILY_HOURS_LIMIT,
-} from '../utils/tasks'
+import { compareByDueDateThenHours, DEFAULT_DAILY_HOURS_LIMIT, getTaskStatus } from '../utils/tasks'
 
 function buildQuery(params) {
   const query = new URLSearchParams()
@@ -32,11 +28,8 @@ export async function getTodayData({
 
   const perEvent = await Promise.all(
     allEvents.map(async (event) => {
-      const [hoy, detail] = await Promise.all([
-        apiFetch(`/hoy/${buildQuery({ event: event.id })}`, { signal }),
-        apiFetch(`/events/${event.id}/`, { signal }),
-      ])
-      return { event, hoy, detail }
+      const hoy = await apiFetch(`/hoy/${buildQuery({ event: event.id })}`, { signal })
+      return { event, hoy }
     })
   )
 
@@ -44,23 +37,23 @@ export async function getTodayData({
   const conflicts = []
   const eventsWithProgress = []
 
-  for (const { event, hoy, detail } of perEvent) {
+  for (const { event, hoy } of perEvent) {
     const withEvent = (task, priority) => ({
       ...normalizeTask(task, event),
       eventName: event.name,
       priority,
     })
 
-    const todayTasks = (hoy.para_hoy || []).filter((task) => task.state !== 'hecha')
+    // /hoy/ ya excluye las hechas; las pospuestas siguen visibles y cuentan para las horas del día.
+    const todayTasks = hoy.para_hoy || []
 
     groups.vencidas.push(...(hoy.vencidas || []).map((task) => withEvent(task, 'vencida')))
     groups.paraHoy.push(...todayTasks.map((task) => withEvent(task, 'urgent')))
     groups.proximas.push(...(hoy.proximas || []).map((task) => withEvent(task, 'upcoming')))
 
-    const taskList = (detail.tasks || []).map((task) => normalizeTask(task, event))
     eventsWithProgress.push({
       ...event,
-      progress: computeProgress(taskList).percent,
+      progress: event.progress.percent,
       pendingToday: todayTasks.length,
     })
   }
@@ -98,6 +91,22 @@ export async function getTodayData({
   const items = [...visibleGroups.vencidas, ...visibleGroups.paraHoy, ...visibleGroups.proximas]
 
   return { groups: visibleGroups, items, conflicts, events: eventsWithProgress, allEvents }
+}
+
+/**
+ * Cuenta las tareas no hechas del usuario por estado: pendientes, pospuestas y vencidas
+ * (una pospuesta vencida cuenta solo como pospuesta, igual que `getTaskStatus`).
+ */
+export async function getOpenTaskCounts({ signal } = {}) {
+  const data = await apiFetch('/hoy/', { signal })
+  const counts = { pending: 0, postponed: 0, overdue: 0 }
+  for (const raw of [...(data.vencidas || []), ...(data.para_hoy || []), ...(data.proximas || [])]) {
+    const status = getTaskStatus(normalizeTask(raw))
+    if (status === 'postponed') counts.postponed += 1
+    else if (status === 'overdue') counts.overdue += 1
+    else counts.pending += 1
+  }
+  return counts
 }
 
 export async function getPlannedHoursForDate(dateKey, { excludeTaskId, signal } = {}) {

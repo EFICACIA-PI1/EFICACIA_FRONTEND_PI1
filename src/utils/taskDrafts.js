@@ -19,13 +19,13 @@ export function validateTaskDrafts(drafts, limitHours, eventDate = '') {
 
   for (const draft of drafts) {
     const row = {}
-    if (!draft.name.trim()) row.name = 'Escribe el nombre de la gestión.'
+    if (!draft.name.trim()) row.name = 'Escribe el nombre de la tarea.'
 
     if (eventDate && eventDate < today) {
-      row.dueDate = `Este evento ya pasó (${formatDateToast(eventDate)}); no se pueden agendar gestiones nuevas.`
-    } else if (!draft.dueDate) row.dueDate = 'Elige la fecha de la gestión.'
+      row.dueDate = `Este evento ya pasó (${formatDateToast(eventDate)}); no se pueden agendar tareas nuevas.`
+    } else if (!draft.dueDate) row.dueDate = 'Elige la fecha de la tarea.'
     else if (!/^\d{4}-\d{2}-\d{2}$/.test(draft.dueDate)) row.dueDate = 'Ingresa una fecha válida.'
-    else if (draft.dueDate < today) row.dueDate = 'La fecha de la gestión no puede ser anterior a hoy.'
+    else if (draft.dueDate < today) row.dueDate = 'La fecha de la tarea no puede ser anterior a hoy.'
     else if (eventDate && draft.dueDate > eventDate) {
       row.dueDate = `La fecha límite no puede ser posterior a la fecha del evento (${formatDateToast(eventDate)}).`
     }

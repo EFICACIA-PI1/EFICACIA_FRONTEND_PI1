@@ -3,6 +3,7 @@ import { getTaskStatus } from '../utils/tasks'
 
 const STATUS = {
   done: { label: 'Hecha', icon: 'check', cls: 'bg-success-bg text-success border-success-border' },
+  postponed: { label: 'Pospuesta', icon: 'clock', cls: 'bg-warning-bg text-warning border-warning-border' },
   pending: { label: 'Pendiente', icon: '', cls: 'bg-neutral-bg text-neutral border-neutral-border' },
   overdue: { label: 'Vencida', icon: '', cls: 'bg-danger-bg text-danger border-danger-border' },
 }

@@ -48,6 +48,10 @@ function parseError(payload, status) {
     for (const [key, value] of Object.entries(payload)) {
       fields[key] = Array.isArray(value) ? value.join(' ') : String(value)
     }
+    // DRF devuelve este texto en inglés o con otra redacción; mostramos uno propio.
+    if (fields.state && /valid choice|elección válida/i.test(fields.state)) {
+      fields.state = 'No pudimos cambiar el estado de la tarea. Actualiza la página e inténtalo de nuevo.'
+    }
     const first = Object.values(fields)[0]
     if (first) return { message: first, fields }
   }

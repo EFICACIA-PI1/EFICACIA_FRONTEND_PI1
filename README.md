@@ -1,19 +1,19 @@
 # EFICACIA_FRONTEND_PI1
 
-Frontend del mini proyecto **EFICACIA · Organizador de eventos independientes**. Aplicación de una sola página (SPA) construida con React + Vite que permite crear eventos, gestionar el plan logístico (gestiones), marcar tareas como hechas, diferirlas y visualizar el progreso de cada evento.
+Frontend del mini proyecto **EFICACIA · Organizador de eventos independientes**. Aplicación de una sola página (SPA) construida con React + Vite que permite crear eventos, gestionar el plan logístico (tareas), marcar tareas como hechas, diferirlas y visualizar el progreso de cada evento.
 
 ## Funcionalidades
 
 - **Autenticación**: inicio de sesión (`/login`), registro (`/registro`), recuperación de contraseña (`/recuperar` y `/reset-password?uid=&token=`, el enlace que envía el correo del backend) y cierre de sesión (invalida el token en el servidor). El token se guarda en `localStorage` y se envía como `Authorization: Token <token>`. Si la API responde 401 se cierra la sesión. Las demás rutas están protegidas.
 - **Mi perfil** (`/perfil`): datos desde `GET /auth/me/`, edición (`PATCH`: nombre completo, correo, teléfono y dirección; usuario y documento son de solo lectura) y cambio de contraseña.
-- **Hoy** (`/hoy`): gestiones vencidas, para hoy y próximas (`GET /hoy/`), con filtros por **evento** y **estado** guardados en la URL (`?event=1&state=pospuesta`). Alertas de sobrecarga de horas, posponer y marcar como hecha.
+- **Hoy** (`/hoy`): tareas vencidas, para hoy y próximas (`GET /hoy/`), con filtros por **evento** y **estado** guardados en la URL (`?event=1&state=pospuesta`). Alertas de sobrecarga de horas, posponer y marcar como hecha.
 - **Eventos** (`/eventos`): listado con barra de progreso y eliminación.
 - **Crear** (`/crear`): formulario de nuevo evento.
-- **Detalle** (`/evento/:id`): crear, editar, reprogramar, posponer y eliminar gestiones con validación del límite diario de horas.
+- **Detalle** (`/evento/:id`): crear, editar, reprogramar, posponer y eliminar tareas con validación del límite diario de horas.
 - **Progreso** (`/progreso`): avance general y por evento.
 - Notificaciones (toasts), página 404, `ErrorBoundary` global, carga diferida de rutas y título de pestaña por ruta.
 
-> **Backend:** los endpoints de autenticación y perfil están en la rama `develop` del backend. `state` es de solo lectura en el serializer de tareas, por lo que marcar una gestión como hecha todavía no persiste.
+> **Backend:** los endpoints de autenticación y perfil están en la rama `develop` del backend. `state` es de solo lectura en el serializer de tareas, por lo que marcar una tarea como hecha todavía no persiste.
 
 ## Estructura
 

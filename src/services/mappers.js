@@ -9,6 +9,16 @@ function normalizeDateTime(value) {
   return toDateKey(date)
 }
 
+/** Progreso tal como lo calcula el backend ({ hechas, total, porcentaje }); null si no viene. */
+export function normalizeProgress(raw) {
+  if (!raw || typeof raw !== 'object') return null
+  return {
+    done: Number(raw.hechas) || 0,
+    total: Number(raw.total) || 0,
+    percent: Number(raw.porcentaje) || 0,
+  }
+}
+
 export function normalizeEvent(raw = {}) {
   return {
     id: raw.id,
@@ -17,6 +27,7 @@ export function normalizeEvent(raw = {}) {
     client: raw.client_contact || raw.client || '',
     date: normalizeDateTime(raw.event_date || raw.date),
     location: raw.location || '',
+    progress: normalizeProgress(raw.progress),
   }
 }
 
@@ -28,8 +39,10 @@ export function normalizeTask(raw = {}, event = null) {
     name: raw.name || '',
     dueDate: raw.due_date || raw.dueDate || '',
     hours: Number.isFinite(hours) ? hours : 0,
-    note: raw.description || raw.note || '',
-    done: raw.state === 'hecha' || raw.state === 'done' || Boolean(raw.done),
+    description: raw.description || '',
+    note: raw.note || '',
+    done: raw.state === 'hecha',
+    doneAt: raw.done_at || null,
     state: raw.state || 'pendiente',
     eventName: event?.name || raw.event_name || '',
     priority: raw.priority || 'normal',
@@ -84,8 +97,14 @@ export function buildTaskPayload(data) {
     const value = data.estimated_hours ?? data.hours
     payload.estimated_hours = value === '' || value === null || value === undefined ? value : Number(value)
   }
-  if (Object.prototype.hasOwnProperty.call(data, 'description') || Object.prototype.hasOwnProperty.call(data, 'note')) {
-    payload.description = data.description ?? data.note ?? ''
+  if (Object.prototype.hasOwnProperty.call(data, 'description')) {
+    payload.description = data.description ?? ''
+  }
+  if (Object.prototype.hasOwnProperty.call(data, 'note')) {
+    payload.note = data.note ?? ''
+  }
+  if (Object.prototype.hasOwnProperty.call(data, 'state')) {
+    payload.state = data.state
   }
   if (Object.prototype.hasOwnProperty.call(data, 'type')) {
     payload.type = data.type

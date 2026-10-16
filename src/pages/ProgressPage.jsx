@@ -3,7 +3,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Button from '../components/Button'
 import ProgressBar from '../components/ProgressBar'
-import { listEventsWithProgress } from '../services/eventsApi'
+import { getOverallProgress, listEvents, sumProgress } from '../services/eventsApi'
+import { getOpenTaskCounts } from '../services/todayApi'
 import usePageTitle from '../hooks/usePageTitle'
 import { EmptyState, ErrorState, LoadingState } from '../components/StateViews'
 import DailyLimitBadge from '../components/DailyLimitBadge'
@@ -11,7 +12,7 @@ import DailyLimitBadge from '../components/DailyLimitBadge'
 function StatCard({ label, value, sub, colorClass = 'text-primary' }) {
   return (
     <div className="bg-white rounded-xl border border-edge p-5">
-      <p className="text-xs font-semibold uppercase tracking-widest mb-2 text-subtle">{label}</p>
+      <p className="text-xs font-semibold tracking-widest mb-2 text-subtle">{label}</p>
       <p className={`text-3xl font-bold font-display ${colorClass}`}>
         {value}
       </p>
@@ -25,12 +26,22 @@ export default function ProgressPage() {
   const navigate = useNavigate()
   const [state, setState] = useState('loading')
   const [events, setEvents] = useState([])
+  const [overall, setOverall] = useState({ done: 0, total: 0, percent: 0 })
+  const [openCounts, setOpenCounts] = useState(null)
   const [loadError, setLoadError] = useState(null)
 
   const load = useCallback(async (signal) => {
     try {
-      const data = await listEventsWithProgress({ signal })
+      const [data, global, counts] = await Promise.all([
+        listEvents({ signal }),
+        // Si el global falla, la pantalla sigue con la suma de los eventos.
+        getOverallProgress({ signal }).catch(() => null),
+        // Si el conteo por estado falla, solo se oculta esa sección.
+        getOpenTaskCounts({ signal }).catch(() => null),
+      ])
       setEvents(data)
+      setOverall(global ?? sumProgress(data))
+      setOpenCounts(counts)
       setState(data.length === 0 ? 'empty' : 'success')
     } catch (err) {
       if (err.name === 'AbortError') return
@@ -50,11 +61,7 @@ export default function ProgressPage() {
     load()
   }
 
-  const totalDone = events.reduce((s, e) => s + e.progress.done, 0)
-  const totalAll = events.reduce((s, e) => s + e.progress.total, 0)
-  const avgProgress = events.length
-    ? Math.round(events.reduce((s, e) => s + e.progress.percent, 0) / events.length)
-    : 0
+  const completedEvents = events.filter((e) => e.progress.percent === 100).length
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-16 max-w-4xl mx-auto w-full">
@@ -68,16 +75,40 @@ export default function ProgressPage() {
 
       {state === 'success' && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-          <StatCard label="Gestiones completadas" value={`${totalDone}/${totalAll}`} sub="en total" />
+          <StatCard label="Tareas completadas" value={`${overall.done}/${overall.total}`} sub="en total" />
           <StatCard label="Eventos activos" value={events.length} sub="en curso" />
-          <StatCard label="Progreso medio" value={`${avgProgress}%`} sub="entre todos los eventos" />
+          <StatCard label="Progreso global" value={`${overall.percent}%`} sub="de todas tus tareas" />
           <StatCard
             label="Eventos al 100%"
-            value={events.filter((e) => e.progress.percent === 100).length}
-            sub="listos para el gran día"
+            value={completedEvents}
+            sub={completedEvents === 1 ? 'completado' : 'completados'}
             colorClass="text-success"
           />
         </div>
+      )}
+
+      {state === 'success' && openCounts && (
+        <section aria-labelledby="task-status-heading" className="mb-8">
+          <h2 id="task-status-heading" className="text-xs font-semibold uppercase tracking-widest mb-4 text-subtle">
+            Tareas por estado
+          </h2>
+          <ul className="flex flex-wrap gap-2" role="list">
+            {[
+              { label: 'Completadas', value: overall.done, cls: 'bg-success-bg text-success border-success-border', dot: 'bg-success' },
+              { label: 'Pendientes', value: openCounts.pending, cls: 'bg-neutral-bg text-neutral border-neutral-border', dot: 'bg-neutral' },
+              { label: 'Pospuestas', value: openCounts.postponed, cls: 'bg-warning-bg text-warning border-warning-border', dot: 'bg-warning' },
+              { label: 'Vencidas', value: openCounts.overdue, cls: 'bg-danger-bg text-danger border-danger-border', dot: 'bg-danger' },
+            ].map((item) => (
+              <li
+                key={item.label}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${item.cls}`}
+              >
+                <span aria-hidden="true" className={`w-1.5 h-1.5 rounded-full ${item.dot}`} />
+                {item.value} {item.label}
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       <section aria-labelledby="events-progress-heading">
@@ -126,14 +157,24 @@ export default function ProgressPage() {
                   <p className="text-xs mt-2 text-muted">
                     {event.progress.percent === 100 ? (
                       <span className="inline-flex items-center gap-1 text-success font-medium">
-                        <Icon name="check" className="w-4 h-4 inline" /> Evento listo · todas las gestiones completadas
+                        <Icon name="check" className="w-4 h-4 inline" /> Todas las tareas completadas ({event.progress.done} de {event.progress.total})
                       </span>
                     ) : event.progress.total === 0 ? (
-                      'Todavía no hay gestiones registradas.'
+                      'Todavía no hay tareas registradas.'
                     ) : (
-                      `${event.progress.done} de ${event.progress.total} gestiones completadas`
+                      `${event.progress.done} de ${event.progress.total} tareas completadas`
                     )}
                   </p>
+                  <div className="mt-4">
+                    <Button
+                      size="sm"
+                      variant="neutral"
+                      onClick={() => navigate(`/evento/${event.id}`)}
+                      aria-label={`Ver detalles de ${event.name}`}
+                    >
+                      Ver detalles
+                    </Button>
+                  </div>
                 </div>
               </li>
             ))}
