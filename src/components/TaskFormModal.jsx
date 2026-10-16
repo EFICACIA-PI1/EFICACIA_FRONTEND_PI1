@@ -1,15 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import Icon from './Icon'
 import Modal from './Modal'
 import Button from './Button'
 import Field from './Field'
-import { useAuth } from '../context/AuthContext'
 import { inputCls, inputErrorCls } from '../utils/forms'
-import { getConflictForDate } from '../services/tasksApi'
 import { todayKey } from '../utils/dates'
-import { formatDateShort, formatDateToast } from '../utils/format'
-import { formatHours } from '../utils/tasks'
-import { DEFAULT_DAILY_HOURS_LIMIT } from '../utils/tasks'
+import { formatDateToast } from '../utils/format'
 
 const MODE_META = {
   create: {
@@ -44,15 +39,12 @@ function TaskFormFields({
   focusDateRequest,
 }) {
   const effectiveEventDate = eventDate || event?.date || ''
-  const { user } = useAuth()
-  const dailyHoursLimit = user?.dailyHoursLimit ?? DEFAULT_DAILY_HOURS_LIMIT
   const [form, setForm] = useState(() =>
     task
       ? { name: task.name, dueDate: task.dueDate, hours: String(task.hours), note: task.description || '' }
       : emptyForm
   )
   const [errors, setErrors] = useState({})
-  const [conflict, setConflict] = useState(null)
   const [saveError, setSaveError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const hoursRef = useRef(null)
@@ -118,17 +110,6 @@ function TaskFormFields({
       document.getElementById(FIELD_IDS[firstField])?.focus()
       return
     }
-    setConflict(null)
-    const found = await getConflictForDate(event.id, form.dueDate, {
-      excludeId: mode === 'create' ? null : task?.id,
-      addHours: Number(form.hours),
-      dailyHoursLimit,
-      eventDate: effectiveEventDate,
-    })
-    if (found) {
-      setConflict(found)
-      return
-    }
     setSaveError('')
     setSubmitting(true)
     try {
@@ -150,27 +131,6 @@ function TaskFormFields({
     } finally {
       setSubmitting(false)
     }
-  }
-
-  function resolveConflict(target) {
-    setConflict(null)
-    if (target === 'date') {
-      dateRef.current?.focus()
-    } else if (target === 'hours') {
-      hoursRef.current?.focus()
-    }
-  }
-
-  function applySuggestedDay() {
-    const day = conflict?.suggestedDay
-    setConflict(null)
-    if (day) setField('dueDate', day)
-  }
-
-  function applyMaxHours() {
-    const hours = conflict?.maxHours
-    setConflict(null)
-    if (hours) setField('hours', String(hours))
   }
 
   return (
@@ -248,46 +208,6 @@ function TaskFormFields({
           />
         </Field>
 
-        {conflict && (
-          <div
-            role="alert"
-            className="rounded-xl p-4 border border-warning-border bg-warning-bg"
-          >
-            <div className="flex items-start gap-3">
-              <Icon name="alert" className="w-5 h-5 text-warning mt-0.5" />
-              <div>
-                <p className="font-semibold text-sm text-warning-text">
-                  Conflicto de sobrecarga
-                </p>
-                <p className="text-sm mt-1 leading-relaxed text-warning-text-dark">
-                  Este cambio supera tu límite diario de <strong>{conflict.limitHours} h</strong> de
-                  tarea para el {formatDateShort(conflict.date)}. Quedarían programadas{' '}
-                  <strong>{conflict.scheduledHours} h</strong> (límite: {conflict.limitHours} h).
-                </p>
-                <p className="text-sm mt-1 text-warning-text-dark">
-                  {conflict.suggestedDay || conflict.maxHours >= 0.5
-                    ? 'Puedes aplicar una de estas opciones o ajustar los datos a mano.'
-                    : 'Ese día ya está completo. Elige otra fecha para resolverlo.'}
-                </p>
-                <div className="flex flex-wrap gap-2 mt-3">
-                  {conflict.suggestedDay && (
-                    <Button type="button" size="sm" variant="primary" onClick={applySuggestedDay}>
-                      Mover al {formatDateShort(conflict.suggestedDay)}
-                    </Button>
-                  )}
-                  {conflict.maxHours >= 0.5 && (
-                    <Button type="button" size="sm" variant="neutral" onClick={applyMaxHours}>
-                      Reducir a {formatHours(conflict.maxHours)}
-                    </Button>
-                  )}
-                  <Button type="button" size="sm" variant="neutral" onClick={() => resolveConflict('date')}>
-                    Elegir otra fecha
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
         {(externalSaveError || saveError) && (
           <div role="alert" className="rounded-xl p-3 border border-danger-border bg-danger-bg text-sm text-danger">
             {externalSaveError || saveError}
