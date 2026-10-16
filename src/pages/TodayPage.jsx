@@ -12,6 +12,7 @@ import { getTodayData } from '../services/todayApi'
 import { setTaskState } from '../services/tasksApi'
 import { DEFAULT_DAILY_HOURS_LIMIT, formatHours, TASK_STATES } from '../utils/tasks'
 import { formatDate, formatDateShort } from '../utils/format'
+import { todayKey } from '../utils/dates'
 import usePageTitle from '../hooks/usePageTitle'
 import { EmptyState, ErrorState, LoadingState } from '../components/StateViews'
 import DailyLimitBadge from '../components/DailyLimitBadge'
@@ -385,8 +386,8 @@ export default function TodayPage() {
               ? `Tienes ${urgentCount} tarea${urgentCount !== 1 ? 'es' : ''} urgente${urgentCount !== 1 ? 's' : ''}${conflicts.length > 0 ? ' y un conflicto de agenda' : ''}.`
               : 'Todo bajo control. Sin urgencias pendientes hoy.'}
             <br />
-            <time dateTime={new Date().toISOString().slice(0, 10)} className="text-sm text-subtle">
-              {formatDate(new Date().toISOString().slice(0, 10))}
+            <time dateTime={todayKey()} className="text-sm text-subtle">
+              {formatDate(todayKey())}
             </time>
           </p>
         )}

@@ -288,9 +288,6 @@ export default function TaskQuickEditDialogs({ request, onClose, onDone }) {
                 Horas actuales: {formatHours(request.task.hours)}
               </p>
             </div>
-            <p className="text-xs text-muted">
-              <span className="text-danger" aria-hidden="true">*</span> Campo obligatorio
-            </p>
             <Field label="Horas estimadas" htmlFor="quick-hours" required error={fieldError || flow.error}>
               <input
                 id="quick-hours"
