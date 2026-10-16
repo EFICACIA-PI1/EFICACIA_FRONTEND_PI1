@@ -179,7 +179,6 @@ function TaskFormFields({
         <h2 id="tarea-form-title" className="text-lg font-semibold text-navy">
           {meta.title}
         </h2>
-        <p className="text-xs text-muted mt-1"><span className="text-danger" aria-hidden="true">*</span> Campo obligatorio</p>
         <p className="text-sm text-muted mt-0.5">{meta.subtitle}</p>
       </div>
 
