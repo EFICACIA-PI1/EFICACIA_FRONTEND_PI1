@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import Modal from './Modal'
 import Button from './Button'
 import Field from './Field'
@@ -36,6 +36,7 @@ export default function TaskQuickEditDialogs({ request, onClose, onDone }) {
   const [selectedDate, setSelectedDate] = useState(() => initialDate(request))
   const [plannedHours, setPlannedHours] = useState(null)
   const [checkingPlan, setCheckingPlan] = useState(false)
+  const hoursInputRef = useRef(null)
   const toast = useToast()
 
   const flow = useRescheduleFlow({
@@ -149,7 +150,7 @@ export default function TaskQuickEditDialogs({ request, onClose, onDone }) {
             </h2>
           </div>
           <div className="px-6 py-5 space-y-4">
-            <p className="text-sm font-medium text-navy">{request.task.name}</p>
+            <p className="text-sm font-medium text-navy break-words">{request.task.name}</p>
             {eventHasPassed ? (
               <p role="alert" className="rounded-lg border border-danger-border bg-danger-bg p-3 text-sm text-danger">
                 Este evento ya pasó ({formatDateLong(eventDate)}); no se puede reprogramar.
@@ -274,6 +275,7 @@ export default function TaskQuickEditDialogs({ request, onClose, onDone }) {
         onClose={cancel}
         labelledBy="quick-hours-title"
         maxWidth="max-w-sm"
+        initialFocusRef={hoursInputRef}
       >
         <form onSubmit={handleSubmit} noValidate>
           <div className="px-6 py-5 border-b border-edge">
@@ -283,7 +285,7 @@ export default function TaskQuickEditDialogs({ request, onClose, onDone }) {
           </div>
           <div className="px-6 py-5 space-y-4">
             <div>
-              <p className="text-sm font-medium text-navy">{request.task.name}</p>
+              <p className="text-sm font-medium text-navy break-words">{request.task.name}</p>
               <p className="text-sm text-muted mt-1">
                 Horas actuales: {formatHours(request.task.hours)}
               </p>
@@ -291,11 +293,11 @@ export default function TaskQuickEditDialogs({ request, onClose, onDone }) {
             <Field label="Horas estimadas" htmlFor="quick-hours" required error={fieldError || flow.error}>
               <input
                 id="quick-hours"
+                ref={hoursInputRef}
                 type="number"
                 min="0.1"
                 step="0.5"
                 required
-                autoFocus
                 value={hours}
                 onChange={(event) => {
                   setHours(event.target.value)

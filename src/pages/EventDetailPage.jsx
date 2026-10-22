@@ -35,7 +35,7 @@ function TaskCard({ task, busy, onDone, onPostpone, onReopen, onEdit, onDelete }
           <span aria-hidden="true" className={`w-2.5 h-2.5 rounded-full mt-1.5 shrink-0 ${dotClass}`} />
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="font-semibold text-gray-900 leading-snug">{task.name}</h3>
+              <h3 className="font-semibold text-gray-900 leading-snug break-words">{task.name}</h3>
               <StatusBadge task={task} />
             </div>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-sm text-muted">
@@ -43,10 +43,10 @@ function TaskCard({ task, busy, onDone, onPostpone, onReopen, onEdit, onDelete }
               <span className="inline-flex items-center gap-1"><Icon name="calendar" className="w-4 h-4" />{formatDateShort(task.dueDate)}</span>
             </div>
             {task.description && (
-              <p className="text-xs text-muted mt-2">{task.description}</p>
+              <p className="text-xs text-muted mt-2 break-words">{task.description}</p>
             )}
             {task.note && (
-              <p className="text-xs text-muted mt-2 bg-surface border border-edge rounded-lg px-3 py-2">
+              <p className="text-xs text-muted mt-2 bg-surface border border-edge rounded-lg px-3 py-2 break-words">
                 <span className="font-medium text-navy">Nota:</span> {task.note}
               </p>
             )}
@@ -268,7 +268,7 @@ export default function EventDetailPage() {
         <>
           <header className="mb-8">
             <div className="flex flex-wrap items-center gap-3 mb-2">
-              <h1 className="text-2xl sm:text-3xl font-semibold text-navy font-display">
+              <h1 className="text-2xl sm:text-3xl font-semibold text-navy font-display break-words min-w-0">
                 {event.name}
               </h1>
               {event.type && (

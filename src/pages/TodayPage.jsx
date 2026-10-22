@@ -123,9 +123,9 @@ function TaskCard({ task, busy, onComplete, onPostpone, onEditHours, onReschedul
     <article className="bg-white rounded-xl border border-edge p-4">
       <div className="flex items-start gap-4">
         <div className="flex-1 min-w-0">
-          <p className="font-medium text-sm leading-snug text-navy">{task.name}</p>
+          <p className="font-medium text-sm leading-snug text-navy break-words">{task.name}</p>
           <div className="flex flex-wrap items-center gap-2 mt-1">
-            <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-primary-soft text-primary">
+            <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-primary-soft text-primary break-words min-w-0">
               {task.eventName}
             </span>
             <span className="inline-flex items-center gap-1 text-xs text-muted">
@@ -377,7 +377,7 @@ export default function TodayPage() {
     <div className="px-4 sm:px-6 lg:px-8 py-16 max-w-4xl mx-auto w-full">
       <DailyLimitBadge />
       <header className="mb-8">
-        <h1 className="text-2xl sm:text-3xl font-semibold leading-tight mb-2 text-navy font-display">
+        <h1 className="text-2xl sm:text-3xl font-semibold leading-tight mb-2 text-navy font-display break-words">
           {displayName ? `Hola, ${displayName}.` : 'Hola.'} Aquí está tu plan logístico para hoy.
         </h1>
         {state === 'success' && (
@@ -430,8 +430,8 @@ export default function TodayPage() {
                 >
                   <div className="flex items-start gap-3 flex-1">
                     <Icon name="alert" className="w-6 h-6 text-warning mt-0.5" />
-                    <div>
-                      <p className="font-semibold text-sm text-warning-text">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-sm text-warning-text break-words">
                         Alerta de sobrecarga · {conflict.eventName}
                       </p>
                       <p className="text-sm mt-0.5 leading-relaxed text-warning-text-dark">
@@ -526,9 +526,9 @@ export default function TodayPage() {
                   className="flex items-start gap-3 p-3 rounded-xl border border-warning-border"
                 >
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-800">{task.name}</p>
+                    <p className="text-sm font-medium text-gray-800 break-words">{task.name}</p>
                     <div className="flex items-center gap-2 mt-1">
-                      <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-primary-soft text-primary">
+                      <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-primary-soft text-primary break-words min-w-0">
                         {task.eventName}
                       </span>
                       <span className="inline-flex items-center gap-1 text-xs text-muted"><Icon name="clock" className="w-3.5 h-3.5" />{formatHours(task.hours)}</span>
