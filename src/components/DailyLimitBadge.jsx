@@ -47,7 +47,7 @@ export default function DailyLimitBadge() {
   if (!user || dailyHoursLimit == null) return null
 
   return (
-    <div ref={badgeRef} className="fixed bottom-4 right-4 z-40">
+    <div ref={badgeRef} className="relative flex justify-end mb-6 sm:fixed sm:bottom-4 sm:right-4 sm:z-40 sm:mb-0">
       <div
         id={TOOLTIP_ID}
         role="tooltip"

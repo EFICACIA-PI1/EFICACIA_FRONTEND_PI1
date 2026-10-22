@@ -137,7 +137,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-16 max-w-4xl mx-auto w-full space-y-6">
+    <div className="px-4 sm:px-6 lg:px-8 py-6 sm:py-10 lg:py-16 max-w-4xl mx-auto w-full space-y-6">
       <header>
         <h1 className="text-2xl sm:text-3xl font-semibold text-navy font-display">Mi perfil</h1>
       </header>
