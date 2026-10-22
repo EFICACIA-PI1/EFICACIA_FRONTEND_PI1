@@ -121,7 +121,7 @@ function TaskCard({ task, busy, onComplete, onPostpone, onEditHours, onReschedul
 
   return (
     <article className="bg-white rounded-xl border border-edge p-4">
-      <div className="flex items-start gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-4">
         <div className="flex-1 min-w-0">
           <p className="font-medium text-sm leading-snug text-navy break-words">{task.name}</p>
           <div className="flex flex-wrap items-center gap-2 mt-1">
@@ -146,13 +146,13 @@ function TaskCard({ task, busy, onComplete, onPostpone, onEditHours, onReschedul
             )}
           </div>
           {task.note && (
-            <p className="text-xs text-muted mt-2 bg-surface border border-edge rounded-lg px-3 py-2">
+            <p className="text-xs text-muted mt-2 bg-surface border border-edge rounded-lg px-3 py-2 break-words">
               <span className="font-medium text-navy">Nota:</span> {task.note}
             </p>
           )}
         </div>
 
-        <div className="flex flex-wrap items-center justify-center self-center gap-2 shrink-0">
+        <div className="grid grid-cols-2 gap-2 shrink-0 sm:flex sm:flex-wrap sm:items-center sm:justify-center sm:self-center">
         <Button
           size="sm"
           variant="neutral"
@@ -374,7 +374,7 @@ export default function TodayPage() {
   const overloadTotal = conflicts.reduce((s, c) => s + (c.scheduledHours - c.limitHours), 0)
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-16 max-w-4xl mx-auto w-full">
+    <div className="px-4 sm:px-6 lg:px-8 py-6 sm:py-10 lg:py-16 max-w-4xl mx-auto w-full">
       <DailyLimitBadge />
       <header className="mb-8">
         <h1 className="text-2xl sm:text-3xl font-semibold leading-tight mb-2 text-navy font-display break-words">

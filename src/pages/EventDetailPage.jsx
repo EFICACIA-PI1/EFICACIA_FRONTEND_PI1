@@ -30,7 +30,7 @@ function TaskCard({ task, busy, onDone, onPostpone, onReopen, onEdit, onDelete }
         : 'bg-primary'
   return (
     <article className="bg-white rounded-xl border border-edge p-4">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div className="flex items-start gap-3 min-w-0">
           <span aria-hidden="true" className={`w-2.5 h-2.5 rounded-full mt-1.5 shrink-0 ${dotClass}`} />
           <div className="min-w-0">
@@ -230,8 +230,8 @@ export default function EventDetailPage() {
   }
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-16 max-w-4xl mx-auto w-full">
-      <div className="mb-6 flex items-center justify-between gap-3">
+    <div className="px-4 sm:px-6 lg:px-8 py-6 sm:py-10 lg:py-16 max-w-4xl mx-auto w-full">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <Button variant="neutral" size="sm" onClick={() => navigate('/eventos')}>
           ← Volver a mis eventos
         </Button>
