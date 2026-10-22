@@ -141,8 +141,8 @@ export default function ProgressPage() {
             {events.map((event) => (
               <li key={event.id}>
                 <div className="bg-white rounded-xl border border-edge p-5">
-                  <div className="flex justify-between items-center mb-3">
-                    <span className="text-sm font-semibold text-navy font-display">{event.name}</span>
+                  <div className="flex justify-between items-center gap-3 mb-3">
+                    <span className="text-sm font-semibold text-navy font-display break-words min-w-0">{event.name}</span>
                     <span
                       className={`text-sm font-bold ${event.progress.percent === 100 ? 'text-success' : 'text-primary'}`}
                     >

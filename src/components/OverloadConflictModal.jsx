@@ -115,7 +115,7 @@ export default function OverloadConflictModal({
           <h2 id="overload-title" className="text-lg font-semibold text-navy font-display">
             Ese día quedaría sobrecargado
           </h2>
-          {taskName && <p className="text-sm font-medium text-warning-text-dark mt-1">{taskName}</p>}
+          {taskName && <p className="text-sm font-medium text-warning-text-dark mt-1 break-words">{taskName}</p>}
           <p id="overload-description" className="text-sm text-warning-text-dark leading-relaxed mt-2">
             El <strong>{formatDateLong(conflict?.date)}</strong> quedarías con{' '}
             <strong>{formatHours(conflict?.planned_hours)}</strong> de gestión planificadas (límite{' '}
